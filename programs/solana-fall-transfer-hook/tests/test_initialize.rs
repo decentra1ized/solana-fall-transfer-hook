@@ -22,9 +22,10 @@ fn test_initialize() {
     // First create the mint via the dedicated instruction
     initialize_mint(&mut svm, &payer, &mint, &program_id);
 
-    // Then initialize the rate limit account
+    // Challenge 3: rate_limit PDA now uses [b"rate_limit", mint, payer] seeds.
+    // This is the 5th place that must match — the tutorial README listed only four.
     let rate_limit = Pubkey::find_program_address(
-        &[b"rate_limit"],
+        &[b"rate_limit", mint.pubkey().as_ref(), payer.pubkey().as_ref()],
         &program_id,
     ).0;
 
@@ -33,6 +34,7 @@ fn test_initialize() {
         &solana_fall_transfer_hook::instruction::Initialize {}.data(),
         solana_fall_transfer_hook::accounts::Initialize {
             payer: payer.pubkey(),
+            mint: mint.pubkey(), // Challenge 1: must pass the mint
             rate_limit,
             system_program: SYSTEM_PROGRAM_ID,
         }.to_account_metas(None),
