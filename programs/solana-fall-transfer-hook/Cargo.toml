@@ -46,6 +46,9 @@ solana-transaction = "4.1.6"
 solana-signer = "3.0.1"
 solana-keypair = "3.1.2"
 solana-pubkey = "4.2.1"
+# Challenge 4: lets the hook's tests build token-mover instructions without
+# a separate crate. `no-entrypoint` avoids a duplicate entrypoint linker error.
+token-mover = { path = "../token-mover", features = ["no-entrypoint"] }
 
 
 [lints.rust]
