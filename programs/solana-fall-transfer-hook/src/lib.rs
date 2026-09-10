@@ -37,4 +37,8 @@ pub mod solana_fall_transfer_hook {
         transfer_hook::handler(ctx, amount)
     }
 
+    pub fn transfer(ctx: Context<Transfer>, amount: u64, decimals: u8) -> Result<()> {
+        transfer::handler(ctx, amount, decimals)
+    }
+
 }
