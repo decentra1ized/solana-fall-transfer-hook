@@ -11,7 +11,7 @@ pub use constants::*;
 pub use instructions::*;
 pub use state::*;
 
-declare_id!("2JfEsBs1CWdqsrgrPzqZywenRgjTP1cRwuybYyRtccuM");
+declare_id!("Ck9giU9HAtUNmqNLSx1juibxjGN2AxEAdVv9iu9i2JL3");
 
 #[program]
 pub mod solana_fall_transfer_hook {
@@ -32,7 +32,7 @@ pub mod solana_fall_transfer_hook {
         init_extra_account_meta::handler(ctx)
     }
 
-    #[instruction(discriminator = ExecuteInstruction::SPL_DISCRIMINATOR_SLICE)]
+    #[instruction(discriminator = &ExecuteInstruction::SPL_DISCRIMINATOR.as_slice())]
     pub fn transfer_hook(ctx: Context<TransferHook>, amount: u64) -> Result<()> {
         transfer_hook::handler(ctx, amount)
     }
