@@ -9,7 +9,8 @@ use {
 };
 
 use helpers::{
-    setup, setup_mint_and_extra_metas, create_ata, mint_tokens, build_transfer_with_hook_ix,
+    build_transfer_with_hook_ix, create_ata, initialize_rate_limit, mint_tokens, send_ix, setup,
+    setup_mint_and_extra_metas,
 };
 
 #[test]
@@ -75,4 +76,52 @@ fn test_transfer_hook_rate_limit_exceeded() {
     let tx = VersionedTransaction::try_new(VersionedMessage::Legacy(msg), &[&payer]).unwrap();
     let res = svm.send_transaction(tx);
     assert!(res.is_err(), "Transfer exceeding rate limit should fail");
+}
+
+#[test]
+fn test_rate_limit_is_independent_per_owner() {
+    let (mut svm, payer, program_id) = setup();
+    let mint = Keypair::new();
+
+    setup_mint_and_extra_metas(&mut svm, &payer, &mint, &program_id);
+
+    let second_owner = Keypair::new();
+    let recipient = Keypair::new();
+    svm.airdrop(&second_owner.pubkey(), 1_000_000_000).unwrap();
+    svm.airdrop(&recipient.pubkey(), 1_000_000_000).unwrap();
+    initialize_rate_limit(&mut svm, &second_owner, &mint, &program_id);
+
+    let first_source = create_ata(&mut svm, &payer, &payer.pubkey(), &mint.pubkey());
+    let second_source = create_ata(&mut svm, &payer, &second_owner.pubkey(), &mint.pubkey());
+    let destination = create_ata(&mut svm, &payer, &recipient.pubkey(), &mint.pubkey());
+
+    mint_tokens(&mut svm, &payer, &mint.pubkey(), &first_source, 1_000_000);
+    mint_tokens(&mut svm, &payer, &mint.pubkey(), &second_source, 1_000_000);
+
+    let first_transfer = build_transfer_with_hook_ix(
+        &first_source,
+        &destination,
+        &mint.pubkey(),
+        &payer.pubkey(),
+        &program_id,
+        1_000_000,
+        9,
+    );
+    send_ix(&mut svm, first_transfer, &payer, &[&payer]);
+
+    let second_transfer = build_transfer_with_hook_ix(
+        &second_source,
+        &destination,
+        &mint.pubkey(),
+        &second_owner.pubkey(),
+        &program_id,
+        1_000_000,
+        9,
+    );
+    send_ix(
+        &mut svm,
+        second_transfer,
+        &second_owner,
+        &[&second_owner],
+    );
 }
