@@ -9,7 +9,8 @@ use {
 };
 
 use helpers::{
-    setup, setup_mint_and_extra_metas, create_ata, mint_tokens, build_transfer_with_hook_ix,
+     build_transfer_with_hook_ix, create_ata, initialize_rate_limit, mint_tokens, send_ix, setup,
+    setup_mint_and_extra_metas,
 };
 
 #[test]
