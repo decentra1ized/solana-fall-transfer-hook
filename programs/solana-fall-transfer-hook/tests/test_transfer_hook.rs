@@ -10,6 +10,7 @@ use {
 
 use helpers::{
     setup, setup_mint_and_extra_metas, create_ata, mint_tokens, build_transfer_with_hook_ix,
+    initialize_rate_limit,
 };
 
 #[test]
@@ -75,4 +76,38 @@ fn test_transfer_hook_rate_limit_exceeded() {
     let tx = VersionedTransaction::try_new(VersionedMessage::Legacy(msg), &[&payer]).unwrap();
     let res = svm.send_transaction(tx);
     assert!(res.is_err(), "Transfer exceeding rate limit should fail");
+}
+
+#[test]
+fn test_rate_limit_is_per_owner() {
+    let (mut svm, payer, program_id) = setup();
+    let mint = Keypair::new();
+
+    setup_mint_and_extra_metas(&mut svm, &payer, &mint, &program_id);
+
+    // A second holder of the same mint, who initializes their own rate limit.
+    let second = Keypair::new();
+    svm.airdrop(&second.pubkey(), 1_000_000_000).unwrap();
+    initialize_rate_limit(&mut svm, &second, &mint, &program_id);
+
+    let recipient = Keypair::new();
+    let payer_ata = create_ata(&mut svm, &payer, &payer.pubkey(), &mint.pubkey());
+    let second_ata = create_ata(&mut svm, &payer, &second.pubkey(), &mint.pubkey());
+    let dest_ata = create_ata(&mut svm, &payer, &recipient.pubkey(), &mint.pubkey());
+
+    mint_tokens(&mut svm, &payer, &mint.pubkey(), &payer_ata, 1_000_000);
+    mint_tokens(&mut svm, &payer, &mint.pubkey(), &second_ata, 1_000_000);
+
+    // Both owners use their whole limit in the same window. With one shared,
+    // program-wide limit the second transfer would be rejected.
+    for (owner, source) in [(&payer, payer_ata), (&second, second_ata)] {
+        let ix = build_transfer_with_hook_ix(
+            &source, &dest_ata, &mint.pubkey(), &owner.pubkey(), &program_id, 1_000_000, 9,
+        );
+        let blockhash = svm.latest_blockhash();
+        let msg = Message::new_with_blockhash(&[ix], Some(&owner.pubkey()), &blockhash);
+        let tx = VersionedTransaction::try_new(VersionedMessage::Legacy(msg), &[owner]).unwrap();
+        let res = svm.send_transaction(tx);
+        assert!(res.is_ok(), "each owner should have their own limit: {:?}", res.err());
+    }
 }
