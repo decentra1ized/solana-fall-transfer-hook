@@ -1,7 +1,7 @@
 [package]
 name = "solana-fall-transfer-hook"
 version = "0.1.0"
-description = "Created with Anchor"
+description = "Rate-limited Token-2022 transfer hook built with Anchor"
 edition = "2021"
 
 [lib]
@@ -19,34 +19,51 @@ anchor-debug = []
 custom-heap = []
 custom-panic = []
 
-
 [dependencies]
+# Anchor provides the framework, account validation macros,
+# instruction contexts, errors, PDAs, and Solana utilities.
 anchor-lang = "1.2.0"
+
+# Anchor SPL provides Anchor-compatible Token-2022 account types,
+# constraints, and program wrappers.
 anchor-spl = "1.2.0"
-# TLV account resolution: `ExtraAccountMeta`, `Seed` and `ExtraAccountMetaList`.
-# `init_extra_account_meta.rs` uses these to declare and serialize the extra
-# accounts Token-2022 must pass to the hook (here, the rate_limit PDA) so the
-# client can resolve them automatically at transfer time.
+
+# Provides ExtraAccountMeta, Seed, and ExtraAccountMetaList.
+#
+# These types describe the additional accounts Token-2022 must
+# supply whenever it calls our transfer hook.
 spl-tlv-account-resolution = "0.11.3"
-# Provides the `SplDiscriminate` trait, which yields
-# `ExecuteInstruction::SPL_DISCRIMINATOR_SLICE` — the 8-byte discriminator
-# Token-2022 uses to dispatch into our `transfer_hook` instruction (see lib.rs).
+
+# Provides the discriminator used to identify the official
+# Transfer Hook Execute instruction.
 spl-discriminator = "0.5.2"
-# The standard transfer-hook interface. `ExecuteInstruction` is the interface
-# type used to tag the `transfer_hook` instruction and to bind the
-# `ExtraAccountMetaList` to the Execute call (`ExtraAccountMetaList::init::
-# <ExecuteInstruction>`), keeping this program interoperable with Token-2022.
+
+# Provides the standard Token-2022 Transfer Hook interface.
+#
+# This keeps our program compatible with the instruction format
+# that Token-2022 expects.
 spl-transfer-hook-interface = "2.1.0"
 
-
 [dev-dependencies]
+# Runs a lightweight Solana blockchain in memory for local tests.
 litesvm = "0.16.0"
+
+# Solana utilities used to build and sign test transactions.
 solana-message = "4.4.1"
 solana-transaction = "4.1.6"
 solana-signer = "3.0.1"
 solana-keypair = "3.1.2"
 solana-pubkey = "4.2.1"
 
+# Lets the integration test use token-mover's generated instruction
+# data and account structures.
+#
+# This is only a test dependency. The transfer-hook program does not
+# call token-mover when deployed.
+#
+# The no-entrypoint feature prevents token-mover from adding another
+# program entrypoint inside the transfer-hook integration test.
+token-mover = { path = "../token-mover", features = ["no-entrypoint"] }
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(target_os, values("solana"))'] }

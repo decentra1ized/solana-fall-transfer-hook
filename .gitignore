@@ -1,0 +1,3 @@
+# Rust and Anchor generated build files.
+# These files are recreated during builds and tests.
+/target
