@@ -65,6 +65,7 @@ pub fn initialize_rate_limit(svm: &mut LiteSVM, payer: &Keypair, mint: &Keypair,
         solana_fall_transfer_hook::accounts::Initialize {
             payer: payer.pubkey(),
             rate_limit,
+            mint: mint.pubkey(),
             system_program: SYSTEM_PROGRAM_ID,
         }.to_account_metas(None),
     );
