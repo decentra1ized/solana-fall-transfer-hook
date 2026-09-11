@@ -40,6 +40,9 @@ spl-transfer-hook-interface = "2.1.0"
 
 
 [dev-dependencies]
+# The mover is only pulled in to build its instruction data and account metas in
+# tests; `no-entrypoint` keeps its entrypoint out of this crate.
+token-mover = { path = "../token-mover", features = ["no-entrypoint"] }
 litesvm = "0.16.0"
 solana-message = "4.4.1"
 solana-transaction = "4.1.6"
