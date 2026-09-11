@@ -1,4 +1,5 @@
 [toolchain]
+anchor_version = "1.2.0"
 package_manager = "yarn"
 
 [features]
@@ -6,7 +7,8 @@ resolution = true
 skip-lint = false
 
 [programs.localnet]
-solana_fall_transfer_hook = "2JfEsBs1CWdqsrgrPzqZywenRgjTP1cRwuybYyRtccuM"
+solana_fall_transfer_hook = "EBZBtuxnAfxi1ZV5bcvo82gPvHPZCP2UiGoBWvf1WCeK"
+token-mover = "D4gtkYCY92oCHWX1RDzmr66SHiUwMGgmo9SiSTAKTZhm"
 
 [provider]
 cluster = "localnet"
