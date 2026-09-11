@@ -7,12 +7,11 @@ use crate::{ANCHOR_DISCRIMINATOR_SIZE, RateLimit, error::ErrorCode};
 pub struct Initialize<'info> {
     #[account(mut)]
     pub payer: Signer<'info>,
+    pub mint: InterfaceAccount<'info, Mint>,
     #[account(
         init,
         payer = payer,
-        // Unique, program-wide rate limit account. See the CHALLENGE note in
-        // `init_extra_account_meta.rs` for making this per-mint/per-owner.
-        seeds = [b"rate_limit"],
+        seeds = [b"rate_limit", mint.key().as_ref(), payer.key().as_ref()],
         bump,
         space = ANCHOR_DISCRIMINATOR_SIZE + RateLimit::INIT_SPACE,
     )]
@@ -20,16 +19,18 @@ pub struct Initialize<'info> {
     pub system_program: Program<'info, System>,
 }
 
-pub fn handler(ctx: Context<Initialize>) -> Result<()> {
-    // For the challenge - Ensure the mint is a token-2022 mint by checking its owner (Pass the mint in the context and check its owner. 
-    // Consider saving the mint in the RateLimit struct if needed for future use.
+pub fn process_initialize(ctx: Context<Initialize>) -> Result<()> {
+    require!(
+        *ctx.accounts.mint.to_account_info().owner == token_2022::ID,
+        ErrorCode::InvalidMint
+    );
 
-    // Initialize the rate limit account with the authority, mint, max amount, and window start timestamp
     ctx.accounts.rate_limit.set_inner(RateLimit {
         authority: ctx.accounts.payer.key(),
+        mint: ctx.accounts.mint.key(),
         max_amount: RateLimit::MAX_AMOUNT,
         window_start: Clock::get()?.unix_timestamp,
-        amount_transferred: 0
+        amount_transferred: 0,
     });
 
     Ok(())

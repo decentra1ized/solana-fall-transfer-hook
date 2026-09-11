@@ -1,0 +1,40 @@
+[2026-09-10T23:20:47.513838600Z INFO  solana_test_validator] agave-validator 4.2.2 (src:e29e5d91; feat:21b0d33a, client:Agave)
+[2026-09-10T23:20:47.515241000Z INFO  solana_test_validator] Starting validator with: ArgsOs {
+        inner: [
+            "solana-test-validator",
+            "--ledger",
+            ".anchor/test-ledger",
+            "--mint",
+            "7hStvB8adcodN69mgMDewqynXxC15EdsZgvYkMNSPp6h",
+            "--bpf-program",
+            "2JfEsBs1CWdqsrgrPzqZywenRgjTP1cRwuybYyRtccuM",
+            "/home/SolarDePin/solana-fall-transfer-hook/solana-fall-transfer-hook/target/deploy/solana_fall_transfer_hook.so",
+        ],
+    }
+[2026-09-10T23:20:47.516205400Z INFO  solana_perf] AVX detected
+[2026-09-10T23:20:47.516219800Z INFO  solana_perf] AVX2 detected
+[2026-09-10T23:20:47.532603300Z INFO  solana_faucet::faucet] Faucet started. Listening on: 0.0.0.0:9900
+[2026-09-10T23:20:47.532651500Z INFO  solana_faucet::faucet] Faucet account address: GnMuQhhEM8McD4tTYgR785pjabUk2v4n8sZpYKUV18TK
+[2026-09-10T23:20:47.536543800Z INFO  agave_validator::admin_rpc_service] started admin rpc service!
+[2026-09-10T23:20:47.537954400Z INFO  solana_test_validator] Feature for a1penGLz8Vm2QHYB3JPefBiU4BY3Z6JkW2k3Scw5GWP deactivated
+[2026-09-10T23:20:47.575210200Z INFO  solana_ledger::blockstore] Opening blockstore at ".anchor/test-ledger/rocksdb"
+[2026-09-10T23:20:47.577389900Z WARN  solana_ledger::blockstore_db] Unable to detect Rocks columns: Error { message: "IO error: No such file or directory: While opening a file for sequentially reading: .anchor/test-ledger/rocksdb/CURRENT: No such file or directory" }
+[2026-09-10T23:20:47.702955400Z INFO  solana_ledger::blockstore] Opening blockstore done; blockstore open took 127ms
+[2026-09-10T23:20:47.729234000Z INFO  solana_metrics::metrics] metrics disabled: environment variable not found
+[2026-09-10T23:20:47.817335700Z INFO  solana_metrics::metrics] datapoint: shred_insert_is_full slot=0i total_time_ms=1i last_index=31i num_repaired=0i num_recovered=0i
+[2026-09-10T23:20:47.853971900Z INFO  agave_snapshots::unarchive] Extracting ".anchor/test-ledger/genesis.tar.bz2"...
+[2026-09-10T23:20:47.858763300Z INFO  agave_io_uring] io_uring NOT supported: Function not implemented (os error 38)
+[2026-09-10T23:20:47.910254300Z INFO  agave_snapshots::hardened_unpack] unpacked 1 entries total
+[2026-09-10T23:20:47.910349600Z INFO  agave_snapshots::unarchive] Extracted ".anchor/test-ledger/genesis.tar.bz2" in 56.1397ms
+
+thread 'main' (14702) panicked at gossip/src/node.rs:283:10:
+broadcast multi_bind: Os { code: 98, kind: AddrInUse, message: "Address already in use" }
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::result::unwrap_failed
+   3: solana_gossip::node::Node::new_with_external_ip
+   4: solana_test_validator::TestValidator::start
+   5: solana_test_validator::TestValidatorGenesis::start_with_mint_address_and_geyser_plugin_rpc
+   6: solana_test_validator::main
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.

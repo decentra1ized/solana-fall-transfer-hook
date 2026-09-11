@@ -39,6 +39,8 @@ pub fn extra_account_metas() -> Result<Vec<ExtraAccountMeta>> {
         ExtraAccountMeta::new_with_seeds(
             &[
                 Seed::Literal { bytes: b"rate_limit".to_vec() },
+                Seed::AccountKey { index: 1 },
+                Seed::AccountKey { index: 3 },
             ],
             false,                                  // is signer
             true,                                   // is writable
@@ -46,7 +48,7 @@ pub fn extra_account_metas() -> Result<Vec<ExtraAccountMeta>> {
     ])
 }
 
-pub fn handler(ctx: Context<InitializeExtraAccountMetaList>) -> Result<()> {
+pub fn process_init_extra_account_meta(ctx: Context<InitializeExtraAccountMetaList>) -> Result<()> {
     // Get the extra account metas for the transfer hook
     let extra_account_metas = extra_account_metas()?;
 

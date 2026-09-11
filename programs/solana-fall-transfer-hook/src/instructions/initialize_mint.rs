@@ -19,6 +19,6 @@ pub struct InitializeMint<'info> {
     pub token_program: Interface<'info, TokenInterface>,
 }
 
-pub fn handler(_ctx: Context<InitializeMint>) -> Result<()> {
+pub fn process_initialize_mint(_ctx: Context<InitializeMint>) -> Result<()> {
     Ok(())
 }

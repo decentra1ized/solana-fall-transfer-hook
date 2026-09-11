@@ -1,18 +1,24 @@
 [toolchain]
-package_manager = "yarn"
 
 [features]
 resolution = true
 skip-lint = false
 
 [programs.localnet]
-solana_fall_transfer_hook = "2JfEsBs1CWdqsrgrPzqZywenRgjTP1cRwuybYyRtccuM"
+solana_fall_transfer_hook = "EqpiQo4hu8gufRzc2VUDjgEPCV1kEePNeHcgDYft4TH7"
+token_mover = "6gJVDHtpXwdVuWeyzMd4zkpjNQ3h4ydK44PjW3uprrxu"
+
+[registry]
+url = "https://api.apr.dev"
 
 [provider]
-cluster = "localnet"
+cluster = "Localnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]
 test = "cargo test"
 
-[hooks]
+[test]
+startup_wait = 10000
+shutdown_wait = 2000
+upgradeable = false
