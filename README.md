@@ -4,7 +4,9 @@ This example demonstrates how to implement a transfer hook using the SPL Token 2
 
 In this example, every token transfer is validated against a rate limit. If the cumulative amount transferred within a time window exceeds the configured maximum, the transfer is rejected - providing automatic, on-chain throttling of token movements.
 
-The base implementation is intentionally minimal: it uses a single, program-wide rate limit account (derived from just the `"rate_limit"` seed) that every transfer shares. Turning this into a proper per-mint, per-user rate limit is left to you as a set of guided exercises - look for the `CHALLENGE` comments in the code and the [Challenges](#challenges) section at the end.
+The rate limit is scoped to each mint and source owner. A separate `token-mover`
+program performs program-initiated transfers through Token-2022 so the hook can
+run without re-entering itself.
 
 ---
 
@@ -34,7 +36,7 @@ pub struct RateLimit {
 - window_start: The Unix timestamp at which the current window opened, used to determine when the window expires.
 - amount_transferred: The cumulative amount transferred so far within the current window.
 
-> Notice there is no `mint` field here. Recording which mint a rate limit belongs to is part of the [Challenges](#challenges) - the base version keeps the account as small as possible.
+> The `mint` field binds each rate limit account to the Token-2022 mint it controls.
 
 The rate limit uses a **fixed window**: `window_start` is set when the window opens and is never moved by transfers. Once more than 3600 seconds (1 hour) have elapsed since `window_start`, the next transfer opens a fresh window with a zeroed total. This is a deliberate design choice - if every transfer refreshed the timestamp instead (a sliding window keyed on "last activity"), a holder transferring at least once per hour would keep the window alive forever and their running total would never reset, permanently capping an active account.
 
@@ -84,7 +86,7 @@ pub struct Initialize<'info> {
     #[account(
         init,
         payer = payer,
-        seeds = [b"rate_limit"],
+        seeds = [b"rate_limit", mint.key().as_ref(), payer.key().as_ref()],
         bump,
         space = ANCHOR_DISCRIMINATOR_SIZE + RateLimit::INIT_SPACE,
     )]
@@ -97,7 +99,7 @@ Let's have a closer look at the accounts that we are passing in this context:
 
 - payer: Will be the person creating the rate limit account. He will be a signer of the transaction, and we mark his account as mutable as we will be deducting lamports from this account.
 
-- rate_limit: The state account that we will initialize. In the base version we derive the RateLimit PDA from the single seed `["rate_limit"]`, so there is exactly one rate limit account for the whole program. Making it unique per mint and per user is a [Challenge](#challenges).
+- rate_limit: The state account that we will initialize. Its PDA is derived from the rate-limit seed, mint, and payer, so each mint/owner pair has an independent account.
 
 - system_program: Program responsible for the initialization of any new account.
 
@@ -116,7 +118,7 @@ pub fn handler(ctx: Context<Initialize>) -> Result<()> {
 }
 ```
 
-In here, we set the initial data of our RateLimit account with the authority, a maximum transfer amount of 1,000,000, the current timestamp, and zero amount transferred. Notice the base handler does not take a `mint` account and does not validate it - passing the mint in and checking it is owned by the Token-2022 program is one of the [Challenges](#challenges).
+In here, we set the initial data of our RateLimit account with the authority, mint, a maximum transfer amount of 1,000,000, the current timestamp, and zero amount transferred. The handler rejects accounts that are not owned by Token-2022.
 
 ---
 
@@ -198,7 +200,7 @@ pub struct TransferHook<'info> {
     pub extra_account_meta_list: UncheckedAccount<'info>,
     #[account(
         mut,
-        seeds = [b"rate_limit"],
+        seeds = [b"rate_limit", mint.key().as_ref(), owner.key().as_ref()],
         bump,
     )]
     pub rate_limit: Account<'info, RateLimit>,
@@ -217,7 +219,7 @@ In this context, we are passing all the accounts needed for transfer validation:
 
 - extra_account_meta_list: The metadata account that contains information about extra accounts required for this transfer hook.
 
-- rate_limit: The rate limit account being enforced. In the base version this is the single program-wide account; its seeds must match those declared in `extra_account_metas()` so the runtime passes in the same account. We mark it as mutable because we will update the transferred amount on each successful transfer.
+- rate_limit: The per-mint/per-owner rate limit account being enforced. Its seeds must match those declared in `extra_account_metas()` so the runtime passes in the same account. We mark it as mutable because we update the transferred amount on each successful transfer.
 
 ### We then implement the transfer hook handler:
 
@@ -274,15 +276,17 @@ This rate limit transfer hook provides an automatic throttling mechanism for Tok
 
 ---
 
-## Challenges
+## Completed extensions
 
-The program above works, but it takes a deliberate shortcut: there is a single, global rate limit shared by every user and every mint. The code is marked with `CHALLENGE` comments where it can be extended. Try to work through these in order - the tests under `tests/` should pass again once every piece lines up (run `anchor build` before `cargo test` so the tests pick up your recompiled program).
+The implementation includes the four extensions described by the original
+exercise:
 
-1. **Validate the mint.** The `initialize` handler no longer checks that it is being pointed at a real Token-2022 mint. Add a `mint` account to the `Initialize` context and verify, in the handler, that it is owned by the Token-2022 program before creating the rate limit. (See the comment in `initialize.rs`.)
+1. **Validate the mint.** `initialize` rejects accounts not owned by Token-2022.
 
-2. **Remember the mint on the account.** If a rate limit should know which mint it belongs to, add a `mint` field back to the `RateLimit` struct and set it in the handler. The `InitSpace` derive updates the account's size accounting for you.
+2. **Remember the mint on the account.** Each `RateLimit` stores its mint.
 
-3. **Make the rate limit per-mint and per-owner.** Today the PDA is derived from a single `"rate_limit"` seed, so everyone shares one bucket. Add the mint and the owner as extra seeds so each user gets their own rate limit per mint. The catch is that the seeds live in **four** places that must all agree:
+3. **Make the rate limit per-mint and per-owner.** The PDA uses the mint and
+    owner in all four required locations:
    - `extra_account_metas()` in `init_extra_account_meta.rs` - what the runtime uses to resolve the account at transfer time,
    - the `Initialize` context in `initialize.rs` - where the account is created,
    - the `TransferHook` context in `transfer_hook.rs` - where the account is loaded,
@@ -290,4 +294,5 @@ The program above works, but it takes a deliberate shortcut: there is a single, 
 
    In `extra_account_metas()` the extra seeds don't reference the mint and owner by name - they reference accounts by their **index** in the transfer hook's execute instruction. Work out which index is the mint and which is the owner.
 
-4. **make the transfer inside your program.** Implement a transfer_checked inside your program to invoke the transfer hook. Deal with re-entrancy.
+4. **Make program transfers.** The `token-mover` workspace program performs a
+    Token-2022 `transfer_checked` CPI and resolves the hook's extra accounts.
