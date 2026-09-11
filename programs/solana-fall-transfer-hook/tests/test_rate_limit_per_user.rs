@@ -20,7 +20,7 @@ use helpers::{
 
 #[test]
 fn each_owner_gets_their_own_rate_limit_budget() {
-    let (mut svm, payer, program_id) = setup();
+    let (mut svm, payer, program_id, _mover_program_id) = setup();
     let mint = Keypair::new();
 
     // payer is the first owner; sets up the mint, its own rate limit, and
