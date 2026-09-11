@@ -1,18 +1,40 @@
+# Anchor project configuration for the Transfer Hook homework.
+
 [toolchain]
+# Use Yarn for any JavaScript or TypeScript project commands.
 package_manager = "yarn"
 
 [features]
+# Allows Anchor to resolve accounts required by instructions.
 resolution = true
+
+# Keeps Anchor's normal lint checks enabled.
 skip-lint = false
 
 [programs.localnet]
+# The main program that creates the mint and enforces rate limits.
 solana_fall_transfer_hook = "2JfEsBs1CWdqsrgrPzqZywenRgjTP1cRwuybYyRtccuM"
 
+# The separate helper program that performs transfer_checked by CPI.
+#
+# It must be separate because Solana blocks:
+# transfer-hook → Token-2022 → same transfer-hook
+#
+# The valid path is:
+# token-mover → Token-2022 → transfer-hook
+token_mover = "65DV2Vib2V2caLcf96n5pTSPYsNzAB9TqqWPTXjyeQtZ"
+
 [provider]
+# Run and test the programs against a local Solana environment.
 cluster = "localnet"
+
+# Default local Solana wallet used by Anchor.
+#
+# This is not used for the temporary wallets created inside LiteSVM tests.
 wallet = "~/.config/solana/id.json"
 
 [scripts]
+# Command Anchor runs when using `anchor test`.
 test = "cargo test"
 
 [hooks]

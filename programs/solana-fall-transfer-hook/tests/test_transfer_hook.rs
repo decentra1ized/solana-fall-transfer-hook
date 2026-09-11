@@ -9,7 +9,7 @@ use {
 };
 
 use helpers::{
-    setup, setup_mint_and_extra_metas, create_ata, mint_tokens, build_transfer_with_hook_ix,
+    build_transfer_with_hook_ix, create_ata, mint_tokens, setup, setup_mint_and_extra_metas,
 };
 
 #[test]
@@ -29,7 +29,13 @@ fn test_transfer_hook() {
     mint_tokens(&mut svm, &payer, &mint.pubkey(), &source_ata, mint_amount);
 
     let transfer_ix = build_transfer_with_hook_ix(
-        &source_ata, &dest_ata, &mint.pubkey(), &payer.pubkey(), &program_id, 100, 9,
+        &source_ata,
+        &dest_ata,
+        &mint.pubkey(),
+        &payer.pubkey(),
+        &program_id,
+        100,
+        9,
     );
 
     let blockhash = svm.latest_blockhash();
@@ -58,17 +64,33 @@ fn test_transfer_hook_rate_limit_exceeded() {
 
     // First transfer: exactly at the limit - should succeed
     let ix1 = build_transfer_with_hook_ix(
-        &source_ata, &dest_ata, &mint.pubkey(), &payer.pubkey(), &program_id, 1_000_000, 9,
+        &source_ata,
+        &dest_ata,
+        &mint.pubkey(),
+        &payer.pubkey(),
+        &program_id,
+        1_000_000,
+        9,
     );
     let blockhash = svm.latest_blockhash();
     let msg = Message::new_with_blockhash(&[ix1], Some(&payer.pubkey()), &blockhash);
     let tx = VersionedTransaction::try_new(VersionedMessage::Legacy(msg), &[&payer]).unwrap();
     let res = svm.send_transaction(tx);
-    assert!(res.is_ok(), "Transfer at limit should succeed: {:?}", res.err());
+    assert!(
+        res.is_ok(),
+        "Transfer at limit should succeed: {:?}",
+        res.err()
+    );
 
     // Second transfer: 1 token more - should fail with RateLimitExceeded
     let ix2 = build_transfer_with_hook_ix(
-        &source_ata, &dest_ata, &mint.pubkey(), &payer.pubkey(), &program_id, 1, 9,
+        &source_ata,
+        &dest_ata,
+        &mint.pubkey(),
+        &payer.pubkey(),
+        &program_id,
+        1,
+        9,
     );
     let blockhash = svm.latest_blockhash();
     let msg = Message::new_with_blockhash(&[ix2], Some(&payer.pubkey()), &blockhash);

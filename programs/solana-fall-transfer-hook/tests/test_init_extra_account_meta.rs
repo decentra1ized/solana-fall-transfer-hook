@@ -3,16 +3,15 @@ mod helpers;
 
 use {
     anchor_lang::{
+        solana_program::instruction::Instruction, system_program::ID as SYSTEM_PROGRAM_ID,
         InstructionData, ToAccountMetas,
-        solana_program::instruction::Instruction,
-        system_program::ID as SYSTEM_PROGRAM_ID,
     },
     solana_keypair::Keypair,
     solana_pubkey::Pubkey,
     solana_signer::Signer,
 };
 
-use helpers::{setup, send_ix, initialize_mint, initialize_rate_limit};
+use helpers::{initialize_mint, initialize_rate_limit, send_ix, setup};
 
 #[test]
 fn test_initialize_extra_account_meta_list() {
@@ -25,7 +24,8 @@ fn test_initialize_extra_account_meta_list() {
     let extra_account_meta_list = Pubkey::find_program_address(
         &[b"extra-account-metas", mint.pubkey().as_ref()],
         &program_id,
-    ).0;
+    )
+    .0;
 
     let init_extra_ix = Instruction::new_with_bytes(
         program_id,
@@ -35,10 +35,14 @@ fn test_initialize_extra_account_meta_list() {
             mint: mint.pubkey(),
             extra_account_meta_list,
             system_program: SYSTEM_PROGRAM_ID,
-        }.to_account_metas(None),
+        }
+        .to_account_metas(None),
     );
     send_ix(&mut svm, init_extra_ix, &payer, &[&payer]);
 
     let account = svm.get_account(&extra_account_meta_list);
-    assert!(account.is_some(), "ExtraAccountMetaList account should exist");
+    assert!(
+        account.is_some(),
+        "ExtraAccountMetaList account should exist"
+    );
 }
