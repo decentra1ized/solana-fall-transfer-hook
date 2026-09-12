@@ -7,6 +7,7 @@ skip-lint = false
 
 [programs.localnet]
 solana_fall_transfer_hook = "2JfEsBs1CWdqsrgrPzqZywenRgjTP1cRwuybYyRtccuM"
+token-mover = "665hPd5Zx3BpHjQiwWeXdzPr9RBiMR8yUad7GKcL3gHP"
 
 [provider]
 cluster = "localnet"
