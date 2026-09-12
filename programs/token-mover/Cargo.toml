@@ -1,0 +1,45 @@
+[package]
+name = "token-mover"
+version = "0.1.0"
+description = "Created with Anchor"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "token_mover"
+
+[features]
+default = []
+cpi = ["no-entrypoint"]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build"]
+anchor-debug = []
+custom-heap = []
+custom-panic = []
+
+[dependencies]
+anchor-lang = "1.2.0"
+anchor-spl = "1.2.0"
+# Same on-chain CPI helper the hook program's `extra_account_metas()` and
+# `ExtraAccountMetaList::init` rely on - here it's what lets this program
+# resolve and forward a hook's extra accounts when *it* initiates a transfer.
+spl-transfer-hook-interface = "2.1.0"
+
+[dev-dependencies]
+litesvm = "0.16.0"
+solana-message = "4.4.1"
+solana-transaction = "4.1.6"
+solana-signer = "3.0.1"
+solana-keypair = "3.1.2"
+solana-pubkey = "4.2.1"
+# For Pack::unpack_from_slice, to read back a token account's balance after
+# a program-initiated transfer.
+solana-program-pack = "3.1.0"
+# So this crate's tests can set up a rate-limited Token-2022 mint using the
+# sibling program's own instructions (Initialize, InitializeMint, ...).
+solana-fall-transfer-hook = { path = "../solana-fall-transfer-hook" }
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(target_os, values("solana"))'] }

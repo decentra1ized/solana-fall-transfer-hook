@@ -46,6 +46,13 @@ solana-transaction = "4.1.6"
 solana-signer = "3.0.1"
 solana-keypair = "3.1.2"
 solana-pubkey = "4.2.1"
+# Legacy (non-2022) Token program state + Pack impl, used only by the
+# Challenge 1 test to fabricate a mint owned by the legacy Token program so we
+# can assert `initialize` rejects it.
+spl-token-interface = "2.0.0"
+solana-program-option = "3.1.0"
+solana-program-pack = "3.1.0"
+solana-account = "4.3.2"
 
 
 [lints.rust]
