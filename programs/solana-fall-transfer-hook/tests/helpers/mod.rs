@@ -11,12 +11,13 @@ use {
         },
         token_2022::{Token2022, spl_token_2022},
     },
-    litesvm::LiteSVM,
+    litesvm::{LiteSVM, types::{FailedTransactionMetadata, TransactionMetadata}},
+    solana_fall_transfer_hook::error::ErrorCode,
     solana_keypair::{Address, Keypair},
     solana_message::{Message, VersionedMessage},
     solana_pubkey::Pubkey,
     solana_signer::Signer,
-    solana_transaction::versioned::VersionedTransaction,
+    solana_transaction::{InstructionError, TransactionError, versioned::VersionedTransaction},
 };
 
 pub fn setup() -> (LiteSVM, Keypair, Address) {
@@ -24,6 +25,11 @@ pub fn setup() -> (LiteSVM, Keypair, Address) {
     let mut svm = LiteSVM::new();
     let bytes = include_bytes!("../../../../target/deploy/solana_fall_transfer_hook.so");
     svm.add_program(program_id, bytes).unwrap();
+
+    // El que hace el CPI: un program aparte, para que la llamada de Token-2022
+    // de vuelta al hook no sea reentrancy.
+    let mover_bytes = include_bytes!("../../../../target/deploy/token_mover.so");
+    svm.add_program(token_mover::id(), mover_bytes).unwrap();
 
     let payer = Keypair::new();
     svm.airdrop(&payer.pubkey(), 1_000_000_000).unwrap();
@@ -55,7 +61,7 @@ pub fn initialize_mint(svm: &mut LiteSVM, payer: &Keypair, mint: &Keypair, progr
 // For the challenge - Initialize the rate limit account and the extra account meta list for a given mint
 pub fn initialize_rate_limit(svm: &mut LiteSVM, payer: &Keypair, mint: &Keypair, program_id: &Address) {
     let rate_limit = Pubkey::find_program_address(
-        &[b"rate_limit"],
+        &[b"rate_limit", mint.pubkey().as_ref(), payer.pubkey().as_ref()],
         program_id,
     ).0;
 
@@ -64,6 +70,7 @@ pub fn initialize_rate_limit(svm: &mut LiteSVM, payer: &Keypair, mint: &Keypair,
         &solana_fall_transfer_hook::instruction::Initialize {}.data(),
         solana_fall_transfer_hook::accounts::Initialize {
             payer: payer.pubkey(),
+            mint: mint.pubkey(),
             rate_limit,
             system_program: SYSTEM_PROGRAM_ID,
         }.to_account_metas(None),
@@ -146,7 +153,7 @@ pub fn build_transfer_with_hook_ix(
     ).0;
 
     let rate_limit = Pubkey::find_program_address(
-        &[b"rate_limit"],
+        &[b"rate_limit", mint.as_ref(), owner.as_ref()],
         program_id,
     ).0;
 
@@ -155,4 +162,68 @@ pub fn build_transfer_with_hook_ix(
     ix.accounts.push(AccountMeta::new(rate_limit, false));
 
     ix
+}
+
+
+// La misma transferencia, pero por el CPI del program token-mover en vez de
+// llamar a Token-2022 directo.
+pub fn build_mover_transfer_ix(
+    source_ata: &Pubkey,
+    dest_ata: &Pubkey,
+    mint: &Pubkey,
+    owner: &Pubkey,
+    hook_program_id: &Address,
+    amount: u64,
+) -> Instruction {
+    let mut ix = Instruction::new_with_bytes(
+        token_mover::id(),
+        &token_mover::instruction::TransferWithHook { amount }.data(),
+        token_mover::accounts::TransferWithHook {
+            owner: *owner,
+            source_token: *source_ata,
+            mint: *mint,
+            destination_token: *dest_ata,
+            token_program: Token2022::id(),
+        }.to_account_metas(None),
+    );
+
+    let extra_account_meta_list = Pubkey::find_program_address(
+        &[b"extra-account-metas", mint.as_ref()],
+        hook_program_id,
+    ).0;
+
+    let rate_limit = Pubkey::find_program_address(
+        &[b"rate_limit", mint.as_ref(), owner.as_ref()],
+        hook_program_id,
+    ).0;
+
+    // El hook program primero: transfer.rs lee remaining_accounts[0] como su id.
+    ix.accounts.push(AccountMeta::new_readonly(*hook_program_id, false));
+    ix.accounts.push(AccountMeta::new_readonly(extra_account_meta_list, false));
+    ix.accounts.push(AccountMeta::new(rate_limit, false));
+
+    ix
+}
+
+// Assert the transaction failed *for the expected reason*. A bare `is_err()`
+// also passes on a stale blockhash or a malformed account list, which would
+// hide a real regression behind a green test.
+//
+// Matches on the numeric code rather than the log text: renaming a variant then
+// can't silently stop matching, and it does not depend on Anchor's log format.
+pub fn assert_failed_with(
+    res: Result<TransactionMetadata, FailedTransactionMetadata>,
+    expected: ErrorCode,
+) {
+    let failure = res.expect_err("transaction was expected to fail, but it succeeded");
+    let expected_code = u32::from(expected);
+
+    match failure.err {
+        TransactionError::InstructionError(_, InstructionError::Custom(code))
+            if code == expected_code => {}
+        other => panic!(
+            "expected {expected:?} (custom error {expected_code}), got {other:?}\n{}",
+            failure.meta.logs.join("\n"),
+        ),
+    }
 }

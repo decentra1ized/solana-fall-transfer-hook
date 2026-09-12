@@ -2,6 +2,7 @@
 mod helpers;
 
 use {
+    solana_fall_transfer_hook::error::ErrorCode,
     solana_keypair::Keypair,
     solana_message::{Message, VersionedMessage},
     solana_signer::Signer,
@@ -10,6 +11,7 @@ use {
 
 use helpers::{
     setup, setup_mint_and_extra_metas, create_ata, mint_tokens, build_transfer_with_hook_ix,
+    assert_failed_with,
 };
 
 #[test]
@@ -73,6 +75,5 @@ fn test_transfer_hook_rate_limit_exceeded() {
     let blockhash = svm.latest_blockhash();
     let msg = Message::new_with_blockhash(&[ix2], Some(&payer.pubkey()), &blockhash);
     let tx = VersionedTransaction::try_new(VersionedMessage::Legacy(msg), &[&payer]).unwrap();
-    let res = svm.send_transaction(tx);
-    assert!(res.is_err(), "Transfer exceeding rate limit should fail");
+    assert_failed_with(svm.send_transaction(tx), ErrorCode::RateLimitExceeded);
 }
