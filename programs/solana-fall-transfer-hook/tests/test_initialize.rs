@@ -51,6 +51,18 @@ fn test_initialize() {
 
     let res = svm.send_transaction(tx);
     assert!(res.is_ok(), "Initialization failed: {:?}", res.err());
+
+    let account = svm
+        .get_account(&rate_limit)
+        .expect("rate limit account should exist after initialize");
+    let stored: solana_fall_transfer_hook::RateLimit =
+        anchor_lang::AccountDeserialize::try_deserialize(&mut account.data.as_slice())
+            .expect("should deserialize as RateLimit");
+    assert_eq!(
+        stored.mint,
+        mint.pubkey(),
+        "rate limit should record the mint it was created for"
+    );
 }
 
 #[test]
