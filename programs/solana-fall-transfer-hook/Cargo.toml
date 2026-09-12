@@ -37,6 +37,7 @@ spl-discriminator = "0.5.2"
 # `ExtraAccountMetaList` to the Execute call (`ExtraAccountMetaList::init::
 # <ExecuteInstruction>`), keeping this program interoperable with Token-2022.
 spl-transfer-hook-interface = "2.1.0"
+token-mover = { path = "../token-mover", features = ["no-entrypoint"] }
 
 
 [dev-dependencies]
