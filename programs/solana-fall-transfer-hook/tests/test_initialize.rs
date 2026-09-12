@@ -26,9 +26,10 @@ fn test_initialize() {
     // First create the mint via the dedicated instruction
     initialize_mint(&mut svm, &payer, &mint, &program_id);
 
-    // Then initialize the rate limit account
+    // Then initialize the rate limit account. `payer` is both the payer and
+    // the owner this rate limit is scoped to, so it's part of the seeds.
     let rate_limit = Pubkey::find_program_address(
-        &[b"rate_limit"],
+        &[b"rate_limit", mint.pubkey().as_ref(), payer.pubkey().as_ref()],
         &program_id,
     ).0;
 
@@ -95,7 +96,10 @@ fn initialize_rejects_non_token_2022_mint() {
     )
     .unwrap();
 
-    let rate_limit = Pubkey::find_program_address(&[b"rate_limit"], &program_id).0;
+    let rate_limit = Pubkey::find_program_address(
+        &[b"rate_limit", mint.pubkey().as_ref(), payer.pubkey().as_ref()],
+        &program_id,
+    ).0;
 
     let instruction = Instruction::new_with_bytes(
         program_id,
