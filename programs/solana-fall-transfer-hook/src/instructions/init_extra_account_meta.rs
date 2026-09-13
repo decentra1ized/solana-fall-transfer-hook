@@ -26,19 +26,30 @@ pub struct InitializeExtraAccountMetaList<'info> {
 
 pub fn extra_account_metas() -> Result<Vec<ExtraAccountMeta>> {
     Ok(vec![
-        // A single, program-wide rate limit account derived only from the
-        // "rate_limit" literal seed. Every transfer of every mint by every
-        // owner resolves to this one account.
+        // The rate limit account, derived per mint and per owner so each holder
+        // gets their own bucket for each mint instead of sharing one global one.
         //
-        // CHALLENGE: make the rate limit account deterministic *per mint and
-        // per owner* by adding the mint and owner as extra seeds.
+        // The runtime resolves this PDA at transfer time from the seeds declared
+        // here, so they must match `initialize.rs` (where the account is created),
+        // `transfer_hook.rs` (where it is loaded) and the test helpers exactly.
         //
-        // The seeds here must match the PDA seeds used to create the account
-        // in `initialize.rs` and to load it in `transfer_hook.rs` (and the
-        // test helpers), so all of them have to be updated together.
+        // Seeds here cannot name accounts directly — they reference them by index
+        // into the Execute instruction's account list, which the transfer hook
+        // interface fixes as:
+        //
+        //   0. source token account
+        //   1. mint
+        //   2. destination token account
+        //   3. owner / source authority
+        //
+        // Hence index 1 for the mint and index 3 for the owner. Getting these
+        // wrong does not fail to compile — it silently resolves a different PDA,
+        // and the transfer fails with a seeds constraint violation instead.
         ExtraAccountMeta::new_with_seeds(
             &[
                 Seed::Literal { bytes: b"rate_limit".to_vec() },
+                Seed::AccountKey { index: 1 },  // mint
+                Seed::AccountKey { index: 3 },  // owner (source authority)
             ],
             false,                                  // is signer
             true,                                   // is writable
