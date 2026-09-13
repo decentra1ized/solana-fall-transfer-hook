@@ -10,6 +10,7 @@ use {
 
 use helpers::{
     setup, setup_mint_and_extra_metas, create_ata, mint_tokens, build_transfer_with_hook_ix,
+    build_transfer_through_mover_ix,
 };
 
 #[test]
@@ -75,4 +76,68 @@ fn test_transfer_hook_rate_limit_exceeded() {
     let tx = VersionedTransaction::try_new(VersionedMessage::Legacy(msg), &[&payer]).unwrap();
     let res = svm.send_transaction(tx);
     assert!(res.is_err(), "Transfer exceeding rate limit should fail");
+}
+
+#[test]
+fn test_transfer_through_program() {
+    let (mut svm, payer, program_id) = setup();
+    let mint = Keypair::new();
+    setup_mint_and_extra_metas(&mut svm, &payer, &mint, &program_id);
+
+    let recipient = Keypair::new();
+    svm.airdrop(&recipient.pubkey(), 1_000_000_000).unwrap();
+    let source_ata = create_ata(&mut svm, &payer, &payer.pubkey(), &mint.pubkey());
+    let dest_ata = create_ata(&mut svm, &payer, &recipient.pubkey(), &mint.pubkey());
+    mint_tokens(&mut svm, &payer, &mint.pubkey(), &source_ata, 100);
+
+    let transfer_ix = build_transfer_through_mover_ix(
+        &source_ata,
+        &dest_ata,
+        &mint.pubkey(),
+        &payer.pubkey(),
+        &program_id,
+        100,
+        9,
+    );
+    let res = helpers::send_ix(&mut svm, transfer_ix, &payer, &[&payer]);
+    assert_eq!(res, ());
+}
+
+#[test]
+fn test_transfer_through_program_rate_limit_exceeded() {
+    let (mut svm, payer, program_id) = setup();
+    let mint = Keypair::new();
+    setup_mint_and_extra_metas(&mut svm, &payer, &mint, &program_id);
+
+    let recipient = Keypair::new();
+    svm.airdrop(&recipient.pubkey(), 1_000_000_000).unwrap();
+    let source_ata = create_ata(&mut svm, &payer, &payer.pubkey(), &mint.pubkey());
+    let dest_ata = create_ata(&mut svm, &payer, &recipient.pubkey(), &mint.pubkey());
+    mint_tokens(&mut svm, &payer, &mint.pubkey(), &source_ata, 1_000_001);
+
+    let first_ix = build_transfer_through_mover_ix(
+        &source_ata,
+        &dest_ata,
+        &mint.pubkey(),
+        &payer.pubkey(),
+        &program_id,
+        1_000_000,
+        9,
+    );
+    helpers::send_ix(&mut svm, first_ix, &payer, &[&payer]);
+
+    let second_ix = build_transfer_through_mover_ix(
+        &source_ata,
+        &dest_ata,
+        &mint.pubkey(),
+        &payer.pubkey(),
+        &program_id,
+        1,
+        9,
+    );
+    let blockhash = svm.latest_blockhash();
+    let msg = Message::new_with_blockhash(&[second_ix], Some(&payer.pubkey()), &blockhash);
+    let tx = VersionedTransaction::try_new(VersionedMessage::Legacy(msg), &[&payer]).unwrap();
+    let res = svm.send_transaction(tx);
+    assert!(res.is_err(), "CPI transfer exceeding rate limit should fail");
 }
