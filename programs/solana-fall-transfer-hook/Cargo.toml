@@ -46,6 +46,13 @@ solana-transaction = "4.1.6"
 solana-signer = "3.0.1"
 solana-keypair = "3.1.2"
 solana-pubkey = "4.2.1"
+# Already present via litesvm; named here so tests can write a raw legacy SPL Token
+# mint account and prove the Token-2022 owner check in `initialize` actually bites.
+solana-account = "4.3.2"
+# Also already present transitively; let the tests assert on the exact runtime error
+# (ReentrancyNotAllowed) rather than merely that a transaction failed.
+solana-instruction-error = "2.4.0"
+solana-transaction-error = "3.3.2"
 
 
 [lints.rust]
