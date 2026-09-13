@@ -1,9 +1,7 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token_interface::Mint;
 use spl_tlv_account_resolution::{
-    account::ExtraAccountMeta, 
-    seeds::Seed,
-    state::ExtraAccountMetaList
+    account::ExtraAccountMeta, seeds::Seed, state::ExtraAccountMetaList,
 };
 use spl_transfer_hook_interface::instruction::ExecuteInstruction;
 
@@ -38,10 +36,14 @@ pub fn extra_account_metas() -> Result<Vec<ExtraAccountMeta>> {
         // test helpers), so all of them have to be updated together.
         ExtraAccountMeta::new_with_seeds(
             &[
-                Seed::Literal { bytes: b"rate_limit".to_vec() },
+                Seed::Literal {
+                    bytes: b"rate_limit".to_vec(),
+                },
+                Seed::AccountKey { index: 1 },
+                Seed::AccountKey { index: 3 },
             ],
-            false,                                  // is signer
-            true,                                   // is writable
+            false, // is signer
+            true,  // is writable
         )?,
     ])
 }
@@ -53,8 +55,9 @@ pub fn handler(ctx: Context<InitializeExtraAccountMetaList>) -> Result<()> {
     // initialize ExtraAccountMetaList account with extra accounts
     ExtraAccountMetaList::init::<ExecuteInstruction>(
         &mut ctx.accounts.extra_account_meta_list.try_borrow_mut_data()?,
-        &extra_account_metas
-    ).unwrap();
+        &extra_account_metas,
+    )
+    .unwrap();
 
     Ok(())
 }
