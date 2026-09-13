@@ -46,6 +46,7 @@ solana-transaction = "4.1.6"
 solana-signer = "3.0.1"
 solana-keypair = "3.1.2"
 solana-pubkey = "4.2.1"
+token-mover = { path = "../token-mover", features = ["no-entrypoint"] }
 
 
 [lints.rust]
