@@ -26,26 +26,14 @@ pub struct InitializeExtraAccountMetaList<'info> {
 
 pub fn extra_account_metas() -> Result<Vec<ExtraAccountMeta>> {
     Ok(vec![
-        // Challenge 3: make the rate limit account deterministic *per mint and
-        // per owner* by adding the mint and owner as extra seeds.
-        //
-        // The TransferHook account context has:
-        // 0: source_token
-        // 1: mint
-        // 2: destination_token
-        // 3: owner
-        // 4: extra_account_meta_list
-        // 5: rate_limit
-        //
-        // So mint is at index 1 and owner is at index 3.
         ExtraAccountMeta::new_with_seeds(
             &[
                 Seed::Literal { bytes: b"rate_limit".to_vec() },
-                Seed::AccountKey { index: 1 },  // mint
-                Seed::AccountKey { index: 3 },  // owner
+                Seed::AccountKey { index: 1 },
+                Seed::AccountKey { index: 3 },
             ],
-            false,                                  // is signer
-            true,                                   // is writable
+            false,
+            true,
         )?,
     ])
 }

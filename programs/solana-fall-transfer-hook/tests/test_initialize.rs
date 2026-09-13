@@ -22,7 +22,6 @@ fn test_initialize() {
     // First create the mint via the dedicated instruction
     initialize_mint(&mut svm, &payer, &mint, &program_id);
 
-    // Then initialize the rate limit account with Challenge 3 seeds (per-mint, per-owner)
     let rate_limit = Pubkey::find_program_address(
         &[b"rate_limit", mint.pubkey().as_ref(), payer.pubkey().as_ref()],
         &program_id,

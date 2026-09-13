@@ -52,9 +52,7 @@ pub fn initialize_mint(svm: &mut LiteSVM, payer: &Keypair, mint: &Keypair, progr
     send_ix(svm, ix, payer, &[payer, mint]);
 }
 
-// For the challenge - Initialize the rate limit account and the extra account meta list for a given mint
 pub fn initialize_rate_limit(svm: &mut LiteSVM, payer: &Keypair, mint: &Keypair, program_id: &Address) {
-    // Challenge 3: rate limit is now per-mint and per-owner (payer is the owner)
     let rate_limit = Pubkey::find_program_address(
         &[b"rate_limit", mint.pubkey().as_ref(), payer.pubkey().as_ref()],
         program_id,
@@ -148,7 +146,6 @@ pub fn build_transfer_with_hook_ix(
         program_id,
     ).0;
 
-    // Challenge 3: rate limit is now per-mint and per-owner
     let rate_limit = Pubkey::find_program_address(
         &[b"rate_limit", mint.as_ref(), owner.as_ref()],
         program_id,

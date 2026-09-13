@@ -13,7 +13,6 @@ pub struct Initialize<'info> {
     #[account(
         init,
         payer = payer,
-        // Challenge 3: Make rate limit per-mint and per-owner
         seeds = [b"rate_limit", mint.key().as_ref(), owner.key().as_ref()],
         bump,
         space = ANCHOR_DISCRIMINATOR_SIZE + RateLimit::INIT_SPACE,
@@ -23,14 +22,12 @@ pub struct Initialize<'info> {
 }
 
 pub fn handler(ctx: Context<Initialize>) -> Result<()> {
-    // Challenge 1: Validate that the mint is a Token-2022 mint by checking its owner
     require_eq!(
         ctx.accounts.mint.owner,
         token_2022::id(),
         ErrorCode::InvalidMint
     );
 
-    // Initialize the rate limit account with the authority, mint, max amount, and window start timestamp
     ctx.accounts.rate_limit.set_inner(RateLimit {
         authority: ctx.accounts.payer.key(),
         mint: ctx.accounts.mint.key(),
