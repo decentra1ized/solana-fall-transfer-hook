@@ -1,0 +1,31 @@
+# Solana / Anchor build artefacts
+target/
+.anchor/
+test-ledger/
+*.so
+*.d
+
+# Anchor keys (never commit private keys)
+programs/*/keypair.json
+.keys/
+
+# Node / Yarn
+node_modules/
+.yarn/cache/
+.yarn/unplugged/
+.yarn/build-state.yml
+.yarn/install-state.gz
+dist/
+
+# OS noise
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
