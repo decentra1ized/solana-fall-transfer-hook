@@ -38,7 +38,6 @@ spl-discriminator = "0.5.2"
 # <ExecuteInstruction>`), keeping this program interoperable with Token-2022.
 spl-transfer-hook-interface = "2.1.0"
 
-
 [dev-dependencies]
 litesvm = "0.16.0"
 solana-message = "4.4.1"
@@ -46,7 +45,7 @@ solana-transaction = "4.1.6"
 solana-signer = "3.0.1"
 solana-keypair = "3.1.2"
 solana-pubkey = "4.2.1"
-
+token-mover = { path = "../token-mover", features = ["no-entrypoint"] }
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(target_os, values("solana"))'] }
