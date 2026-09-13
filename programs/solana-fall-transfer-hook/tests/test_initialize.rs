@@ -12,6 +12,7 @@ use {
     solana_signer::Signer,
 };
 
+
 use helpers::{setup, initialize_mint};
 
 #[test]
@@ -22,17 +23,21 @@ fn test_initialize() {
     // First create the mint via the dedicated instruction
     initialize_mint(&mut svm, &payer, &mint, &program_id);
 
-    // Then initialize the rate limit account
+    // Challenge 3: PDA now uses three seeds — rate_limit | mint | payer —
+    // so every user gets their own rate limit account per mint.
     let rate_limit = Pubkey::find_program_address(
-        &[b"rate_limit"],
+        &[b"rate_limit", mint.pubkey().as_ref(), payer.pubkey().as_ref()],
         &program_id,
     ).0;
 
+    // Challenge 1: Initialize now requires the mint account so it can verify
+    // it is owned by Token-2022 before creating the rate limit.
     let instruction = Instruction::new_with_bytes(
         program_id,
         &solana_fall_transfer_hook::instruction::Initialize {}.data(),
         solana_fall_transfer_hook::accounts::Initialize {
             payer: payer.pubkey(),
+            mint: mint.pubkey(),
             rate_limit,
             system_program: SYSTEM_PROGRAM_ID,
         }.to_account_metas(None),
