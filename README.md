@@ -6,6 +6,11 @@ In this example, every token transfer is validated against a rate limit. If the 
 
 The base implementation is intentionally minimal: it uses a single, program-wide rate limit account (derived from just the `"rate_limit"` seed) that every transfer shares. Turning this into a proper per-mint, per-user rate limit is left to you as a set of guided exercises - look for the `CHALLENGE` comments in the code and the [Challenges](#challenges) section at the end.
 
+> **Note:** the walkthrough below describes the *base* design as originally written, so
+> the snippets showing a single `["rate_limit"]` seed and a `RateLimit` without a `mint`
+> field no longer match the code. All four challenges are implemented on this branch —
+> see [Challenges](#challenges) for what actually changed and why.
+
 ---
 
 ## Let's walk through the architecture:
@@ -21,6 +26,7 @@ A RateLimit account consists of:
 #[derive(InitSpace)]
 pub struct RateLimit {
     pub authority: Pubkey,
+    pub mint: Pubkey,          // added in challenge 2
     pub max_amount: u64,
     pub window_start: i64,
     pub amount_transferred: u64,
@@ -34,7 +40,7 @@ pub struct RateLimit {
 - window_start: The Unix timestamp at which the current window opened, used to determine when the window expires.
 - amount_transferred: The cumulative amount transferred so far within the current window.
 
-> Notice there is no `mint` field here. Recording which mint a rate limit belongs to is part of the [Challenges](#challenges) - the base version keeps the account as small as possible.
+- mint: The mint this rate limit applies to. The base version omitted this to keep the account small; it was added in [challenge 2](#2-remember-the-mint-on-the-account--done).
 
 The rate limit uses a **fixed window**: `window_start` is set when the window opens and is never moved by transfers. Once more than 3600 seconds (1 hour) have elapsed since `window_start`, the next transfer opens a fresh window with a zeroed total. This is a deliberate design choice - if every transfer refreshed the timestamp instead (a sliding window keyed on "last activity"), a holder transferring at least once per hour would keep the window alive forever and their running total would never reset, permanently capping an active account.
 
@@ -276,18 +282,114 @@ This rate limit transfer hook provides an automatic throttling mechanism for Tok
 
 ## Challenges
 
-The program above works, but it takes a deliberate shortcut: there is a single, global rate limit shared by every user and every mint. The code is marked with `CHALLENGE` comments where it can be extended. Try to work through these in order - the tests under `tests/` should pass again once every piece lines up (run `anchor build` before `cargo test` so the tests pick up your recompiled program).
+> **Status: all four are implemented on this branch.** The notes below record what
+> changed and, where the answer was not the obvious one, why.
 
-1. **Validate the mint.** The `initialize` handler no longer checks that it is being pointed at a real Token-2022 mint. Add a `mint` account to the `Initialize` context and verify, in the handler, that it is owned by the Token-2022 program before creating the rate limit. (See the comment in `initialize.rs`.)
+The base program took a deliberate shortcut: a single, global rate limit shared by
+every user and every mint. That is now a per-mint, per-owner bucket.
 
-2. **Remember the mint on the account.** If a rate limit should know which mint it belongs to, add a `mint` field back to the `RateLimit` struct and set it in the handler. The `InitSpace` derive updates the account's size accounting for you.
+### 1. Validate the mint — done
 
-3. **Make the rate limit per-mint and per-owner.** Today the PDA is derived from a single `"rate_limit"` seed, so everyone shares one bucket. Add the mint and the owner as extra seeds so each user gets their own rate limit per mint. The catch is that the seeds live in **four** places that must all agree:
-   - `extra_account_metas()` in `init_extra_account_meta.rs` - what the runtime uses to resolve the account at transfer time,
-   - the `Initialize` context in `initialize.rs` - where the account is created,
-   - the `TransferHook` context in `transfer_hook.rs` - where the account is loaded,
-   - the test helpers in `tests/helpers/mod.rs`.
+`Initialize` now takes a `mint` account, and the handler checks it is owned by the
+Token-2022 program:
 
-   In `extra_account_metas()` the extra seeds don't reference the mint and owner by name - they reference accounts by their **index** in the transfer hook's execute instruction. Work out which index is the mint and which is the owner.
+```rust
+require_keys_eq!(
+    *ctx.accounts.mint.to_account_info().owner,
+    token_2022::ID,
+    ErrorCode::InvalidMint
+);
+```
 
-4. **make the transfer inside your program.** Implement a transfer_checked inside your program to invoke the transfer hook. Deal with re-entrancy.
+`InterfaceAccount<Mint>` alone is not enough — it accepts a legacy SPL Token mint
+too. Checking the owning program is the meaningful test, because the transfer hook
+extension only exists under Token-2022: a rate limit opened against a legacy mint
+would look valid while never being enforced. `test_initialize_rejects_non_token_2022_mint`
+writes a real legacy mint into the SVM to prove the check bites.
+
+### 2. Remember the mint on the account — done
+
+`RateLimit` gained a `mint: Pubkey` field, set in the handler. `InitSpace` recomputes
+the account size automatically.
+
+### 3. Per-mint and per-owner — done
+
+The PDA is now `["rate_limit", mint, owner]`, updated in all four places that must
+agree: `extra_account_metas()`, the `Initialize` context, the `TransferHook` context,
+and the test helpers.
+
+The subtle part is `extra_account_metas()`, where seeds reference accounts by **index**
+into the Execute instruction rather than by name. The transfer hook interface fixes
+that order as:
+
+| Index | Account |
+| --- | --- |
+| 0 | source token account |
+| 1 | **mint** |
+| 2 | destination token account |
+| 3 | **owner / source authority** |
+
+so the extra seeds are `AccountKey { index: 1 }` and `AccountKey { index: 3 }`. Getting
+these wrong does not fail to compile — it silently resolves a different PDA and the
+transfer fails with a seeds constraint violation.
+
+### 4. Transfer inside the program, and re-entrancy — done, with a caveat worth reading
+
+`transfer.rs` implements a `transfer_checked` CPI that resolves and appends the hook's
+extra accounts via `add_extra_accounts_for_execute_cpi`.
+
+The re-entrancy question has a sharper answer than "add a guard". If this program CPIs
+into Token-2022 for a mint whose hook is *this same program*, the chain is:
+
+```
+this program (depth 1) -> Token-2022 (depth 2) -> this program's hook (depth 3)
+```
+
+Solana's runtime rejects that outright with `ReentrancyNotAllowed`: a program already on
+the invocation stack cannot be re-entered from a deeper frame. This is enforced by the
+runtime, not by Token-2022, so it cannot be worked around from program code.
+
+So the honest result is:
+
+- The instruction works for the normal composition case — moving tokens for a mint whose
+  hook belongs to a *different* program.
+- Pointed at its own hooked mint, it **fails loudly** with `ReentrancyNotAllowed` rather
+  than silently transferring without running the hook. That ordering matters: a transfer
+  that skipped its own rate limit would be the dangerous outcome; refusing to execute is
+  the safe one. `test_program_transfer_rejects_self_reentrancy` pins that exact error and
+  asserts nothing moved.
+- The hook itself is unaffected on the ordinary top-level path, where Token-2022 is at
+  depth 1 and the hook runs at depth 2 — `test_top_level_transfer_still_runs_the_hook`
+  covers that.
+
+The second layer of protection is the one already in the base program:
+`check_is_transferring` requires Token-2022's `transferring` flag, which is set only for
+the duration of a real transfer. That is what stops anyone calling `transfer_hook`
+directly to burn through someone else's window.
+
+## Tests
+
+```bash
+anchor build && cargo test   # 10 passing
+```
+
+Run `anchor build` before `cargo test` — the harness embeds the compiled program with
+`include_bytes!`, so the tests otherwise run against a stale binary.
+
+| Test | Covers |
+| --- | --- |
+| `test_initialize` | base initialization still works |
+| `test_initialize_extra_account_meta_list` | metas account is created |
+| `test_transfer_hook` | a transfer within the limit succeeds |
+| `test_transfer_hook_rate_limit_exceeded` | exceeding the window is rejected |
+| `test_initialize_rejects_non_token_2022_mint` | challenge 1 |
+| `test_initialize_accepts_token_2022_mint` | challenge 1, the positive case |
+| `test_rate_limit_is_per_owner` | challenge 3 — two owners do not share a bucket |
+| `test_rate_limit_is_per_mint` | challenge 3 — one owner, two mints |
+| `test_program_transfer_rejects_self_reentrancy` | challenge 4 |
+| `test_top_level_transfer_still_runs_the_hook` | challenge 4, the working path |
+
+The per-owner and per-mint tests were checked by mutation: reverting the owner seed makes
+`test_rate_limit_is_per_owner` fail while `test_rate_limit_is_per_mint` still passes, and
+removing the Token-2022 owner check fails only the mint test. They discriminate rather
+than passing vacuously.

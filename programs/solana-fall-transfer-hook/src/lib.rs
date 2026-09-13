@@ -32,6 +32,19 @@ pub mod solana_fall_transfer_hook {
         init_extra_account_meta::handler(ctx)
     }
 
+    /// Transfers tokens through Token-2022, resolving and passing the mint's
+    /// transfer-hook accounts.
+    ///
+    /// Note this cannot drive *this* program's own hook: the runtime refuses to
+    /// re-enter a program already on the invocation stack. See `transfer.rs` for the
+    /// full explanation and why failing loudly is the right outcome.
+    pub fn transfer<'info>(
+        ctx: Context<'info, Transfer<'info>>,
+        amount: u64,
+    ) -> Result<()> {
+        transfer::handler(ctx, amount)
+    }
+
     #[instruction(discriminator = ExecuteInstruction::SPL_DISCRIMINATOR_SLICE)]
     pub fn transfer_hook(ctx: Context<TransferHook>, amount: u64) -> Result<()> {
         transfer_hook::handler(ctx, amount)
