@@ -3,10 +3,11 @@ use anchor_lang::prelude::*;
 #[account]
 #[derive(InitSpace)]
 pub struct RateLimit {
-    pub authority: Pubkey,          // The account that can update the rate limit
-    pub max_amount: u64,            // The maximum amount that can be transferred within one window
-    pub window_start: i64,          // The timestamp at which the current window opened
-    pub amount_transferred: u64,    // The total amount transferred within the current window
+    pub authority: Pubkey, // The account that can update the rate limit
+    pub mint: Pubkey,
+    pub max_amount: u64, // The maximum amount that can be transferred within one window
+    pub window_start: i64, // The timestamp at which the current window opened
+    pub amount_transferred: u64, // The total amount transferred within the current window
 }
 
 impl RateLimit {
