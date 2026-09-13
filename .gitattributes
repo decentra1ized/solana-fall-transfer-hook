@@ -1,0 +1,10 @@
+# Normalise line endings
+* text=auto
+
+# Tell GitHub / git-diff to linguistically collapse lock files so they
+# don't dominate the PR diff view.
+Cargo.lock linguist-generated=true
+yarn.lock  linguist-generated=true
+
+# Treat compiled .so artefacts as binary
+*.so binary

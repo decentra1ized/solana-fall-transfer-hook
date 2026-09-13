@@ -52,10 +52,13 @@ pub fn initialize_mint(svm: &mut LiteSVM, payer: &Keypair, mint: &Keypair, progr
     send_ix(svm, ix, payer, &[payer, mint]);
 }
 
-// For the challenge - Initialize the rate limit account and the extra account meta list for a given mint
+// Challenge 3: PDA is now per (mint, payer/owner) — three seeds instead of one.
+// Challenge 1: mint is now passed in the accounts struct for ownership validation.
 pub fn initialize_rate_limit(svm: &mut LiteSVM, payer: &Keypair, mint: &Keypair, program_id: &Address) {
     let rate_limit = Pubkey::find_program_address(
-        &[b"rate_limit"],
+        // Challenge 3: seeds must match initialize.rs, transfer_hook.rs, and
+        // extra_account_metas().
+        &[b"rate_limit", mint.pubkey().as_ref(), payer.pubkey().as_ref()],
         program_id,
     ).0;
 
@@ -64,6 +67,8 @@ pub fn initialize_rate_limit(svm: &mut LiteSVM, payer: &Keypair, mint: &Keypair,
         &solana_fall_transfer_hook::instruction::Initialize {}.data(),
         solana_fall_transfer_hook::accounts::Initialize {
             payer: payer.pubkey(),
+            // Challenge 1: mint is now required by the Initialize context.
+            mint: mint.pubkey(),
             rate_limit,
             system_program: SYSTEM_PROGRAM_ID,
         }.to_account_metas(None),
@@ -145,8 +150,9 @@ pub fn build_transfer_with_hook_ix(
         program_id,
     ).0;
 
+    // Challenge 3: derive the per-user rate limit PDA using all three seeds.
     let rate_limit = Pubkey::find_program_address(
-        &[b"rate_limit"],
+        &[b"rate_limit", mint.as_ref(), owner.as_ref()],
         program_id,
     ).0;
 

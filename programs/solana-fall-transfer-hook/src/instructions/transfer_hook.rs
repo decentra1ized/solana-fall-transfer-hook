@@ -27,9 +27,10 @@ pub struct TransferHook<'info> {
     pub extra_account_meta_list: UncheckedAccount<'info>,
     #[account(
         mut,
-        // Unique, program-wide rate limit account. See the CHALLENGE note in
-        // `init_extra_account_meta.rs` for making this per-mint/per-owner.
-        seeds = [b"rate_limit"],
+        // Challenge 3: seeds now include the mint and the owner so the runtime
+        // resolves the correct per-user rate limit account. Must match the seeds
+        // in `initialize.rs` and `init_extra_account_meta.rs`.
+        seeds = [b"rate_limit", mint.key().as_ref(), owner.key().as_ref()],
         bump,
     )]
     pub rate_limit: Account<'info, RateLimit>,
