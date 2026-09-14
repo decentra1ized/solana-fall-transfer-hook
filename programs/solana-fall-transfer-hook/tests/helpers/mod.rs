@@ -1,3 +1,4 @@
+use token_mover;
 use {
     anchor_lang::{
         Id, InstructionData, ToAccountMetas,
@@ -21,9 +22,12 @@ use {
 
 pub fn setup() -> (LiteSVM, Keypair, Address) {
     let program_id = solana_fall_transfer_hook::id();
+    let mover_id = token_mover::id();
     let mut svm = LiteSVM::new();
     let bytes = include_bytes!("../../../../target/deploy/solana_fall_transfer_hook.so");
     svm.add_program(program_id, bytes).unwrap();
+    let mover_bytes = include_bytes!("../../../../target/deploy/token_mover.so");
+    svm.add_program(mover_id, mover_bytes).unwrap();
 
     let payer = Keypair::new();
     svm.airdrop(&payer.pubkey(), 1_000_000_000).unwrap();
@@ -157,4 +161,49 @@ pub fn build_transfer_with_hook_ix(
     ix.accounts.push(AccountMeta::new(rate_limit, false));
 
     ix
+}
+pub fn build_mover_ix(
+    source_ata: &Pubkey,
+    dest_ata: &Pubkey,
+    mint: &Pubkey,
+    owner: &Pubkey,
+    hook_program_id: &Address,
+    mover_program_id: &Address,
+    amount: u64,
+    decimals: u8,
+) -> Instruction {
+    let extra_account_meta_list = Pubkey::find_program_address(
+        &[b"extra-account-metas", mint.as_ref()],
+        hook_program_id,
+    ).0;
+
+    let rate_limit = Pubkey::find_program_address(
+        &[b"rate_limit", mint.as_ref(), owner.as_ref()],
+        hook_program_id,
+    ).0;
+
+    let mut accounts = token_mover::accounts::Transfer {
+        source: *source_ata,
+        mint: *mint,
+        destination: *dest_ata,
+        owner: *owner,
+        token_program: Token2022::id(),
+    }.to_account_metas(None);
+
+    // Token-2022 needs these accounts to invoke the hook:
+    // 1. The hook program itself
+    // 2. The extra_account_meta_list
+    // 3. The rate_limit PDA
+    // Token-2022 program (needed for CPI)
+    accounts.push(AccountMeta::new_readonly(Token2022::id(), false));
+    // Hook resolution accounts
+    accounts.push(AccountMeta::new_readonly(*hook_program_id, false));
+    accounts.push(AccountMeta::new_readonly(extra_account_meta_list, false));
+    accounts.push(AccountMeta::new(rate_limit, false));    
+
+    Instruction::new_with_bytes(
+        *mover_program_id,
+        &token_mover::instruction::Transfer { amount, decimals }.data(),
+        accounts,
+    )
 }
