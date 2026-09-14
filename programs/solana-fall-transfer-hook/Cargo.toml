@@ -40,7 +40,9 @@ spl-transfer-hook-interface = "2.1.0"
 
 
 [dev-dependencies]
-litesvm = "0.16.0"
+# `anchor coverage` sets SBF_TRACE_DIR; LiteSVM only writes .regs traces
+# when built with this feature. Without it: "no trace data found".
+litesvm = { version = "0.16.0", features = ["register-tracing"] }
 solana-message = "4.4.1"
 solana-transaction = "4.1.6"
 solana-signer = "3.0.1"
