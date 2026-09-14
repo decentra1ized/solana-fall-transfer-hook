@@ -25,6 +25,11 @@ pub fn setup() -> (LiteSVM, Keypair, Address) {
     let bytes = include_bytes!("../../../../target/deploy/solana_fall_transfer_hook.so");
     svm.add_program(program_id, bytes).unwrap();
 
+    // The mover is a second program in this workspace; challenge 4's tests send
+    // transfers through it instead of straight from the wallet.
+    let mover_bytes = include_bytes!("../../../../target/deploy/token_mover.so");
+    svm.add_program(token_mover::id(), mover_bytes).unwrap();
+
     let payer = Keypair::new();
     svm.airdrop(&payer.pubkey(), 1_000_000_000).unwrap();
 
@@ -153,6 +158,48 @@ pub fn build_transfer_with_hook_ix(
         &[b"rate_limit", mint.as_ref(), owner.as_ref()],
         program_id,
     ).0;
+
+    ix.accounts.push(AccountMeta::new_readonly(*program_id, false));
+    ix.accounts.push(AccountMeta::new_readonly(extra_account_meta_list, false));
+    ix.accounts.push(AccountMeta::new(rate_limit, false));
+
+    ix
+}
+
+/// Builds a transfer that goes through the token-mover program.
+///
+/// The hook's accounts ride along as remaining accounts, hook program first,
+/// because the mover does not name them in its own `Accounts` struct. The rate
+/// limit must be writable — the hook updates the running total.
+pub fn build_mover_transfer_ix(
+    source_ata: &Pubkey,
+    dest_ata: &Pubkey,
+    mint: &Pubkey,
+    owner: &Pubkey,
+    program_id: &Address,
+    amount: u64,
+) -> Instruction {
+    let extra_account_meta_list = Pubkey::find_program_address(
+        &[b"extra-account-metas", mint.as_ref()],
+        program_id,
+    ).0;
+
+    let rate_limit = Pubkey::find_program_address(
+        &[b"rate_limit", mint.as_ref(), owner.as_ref()],
+        program_id,
+    ).0;
+
+    let mut ix = Instruction::new_with_bytes(
+        token_mover::id(),
+        &token_mover::instruction::TransferWithHook { amount }.data(),
+        token_mover::accounts::TransferWithHook {
+            owner: *owner,
+            source_token: *source_ata,
+            mint: *mint,
+            destination_token: *dest_ata,
+            token_program: Token2022::id(),
+        }.to_account_metas(None),
+    );
 
     ix.accounts.push(AccountMeta::new_readonly(*program_id, false));
     ix.accounts.push(AccountMeta::new_readonly(extra_account_meta_list, false));
