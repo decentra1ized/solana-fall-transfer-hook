@@ -39,6 +39,8 @@ pub fn extra_account_metas() -> Result<Vec<ExtraAccountMeta>> {
         ExtraAccountMeta::new_with_seeds(
             &[
                 Seed::Literal { bytes: b"rate_limit".to_vec() },
+                Seed::AccountKey {index: 1 }, //mint pubkey
+                Seed::AccountKey {index: 3 }, //owner pubkey
             ],
             false,                                  // is signer
             true,                                   // is writable
