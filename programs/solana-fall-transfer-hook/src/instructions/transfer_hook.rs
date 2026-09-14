@@ -1,14 +1,25 @@
 use std::cell::Ref;
 
 use anchor_lang::prelude::*;
-use anchor_spl::{token_2022::spl_token_2022::{extension::{BaseStateWithExtensions, PodStateWithExtensions, transfer_hook::TransferHookAccount}, pod::PodAccount}, token_interface::{Mint, TokenAccount}};
+use anchor_spl::{
+    token_2022::{
+        self,
+        spl_token_2022::{
+            extension::{
+                transfer_hook::TransferHookAccount, BaseStateWithExtensions, PodStateWithExtensions,
+            },
+            pod::PodAccount,
+        },
+    },
+    token_interface::{Mint, TokenAccount},
+};
 
-use crate::{ONE_HOUR, RateLimit};
+use crate::{RateLimit, ONE_HOUR};
 
 #[derive(Accounts)]
 pub struct TransferHook<'info> {
     #[account(
-        token::mint = mint, 
+        token::mint = mint,
         token::authority = owner,
     )]
     pub source_token: InterfaceAccount<'info, TokenAccount>,
@@ -25,44 +36,63 @@ pub struct TransferHook<'info> {
         bump
     )]
     pub extra_account_meta_list: UncheckedAccount<'info>,
-    #[account(
-        mut,
-        // Unique, program-wide rate limit account. See the CHALLENGE note in
-        // `init_extra_account_meta.rs` for making this per-mint/per-owner.
-        seeds = [b"rate_limit"],
-        bump,
-    )]
-    pub rate_limit: Account<'info, RateLimit>,
 }
 
 /// This function is called when the transfer hook is executed.
 pub fn handler(ctx: Context<TransferHook>, amount: u64) -> Result<()> {
     // Fail this instruction if it is not called from within a transfer hook
     check_is_transferring(&ctx)?;
-
+    require_keys_eq!(
+        *ctx.accounts.mint.to_account_info().owner,
+        token_2022::ID,
+        crate::error::ErrorCode::InvalidMint
+    );
+    let rate_limit_info = ctx
+        .remaining_accounts
+        .first()
+        .ok_or_else(|| error!(crate::error::ErrorCode::MissingRateLimit))?;
+    require!(
+        rate_limit_info.is_writable,
+        crate::error::ErrorCode::ReadonlyRateLimit
+    );
+    let (expected, _) = Pubkey::find_program_address(
+        &[
+            b"rate_limit",
+            ctx.accounts.mint.key().as_ref(),
+            ctx.accounts.owner.key().as_ref(),
+        ],
+        ctx.program_id,
+    );
+    require_keys_eq!(
+        rate_limit_info.key(),
+        expected,
+        crate::error::ErrorCode::InvalidRateLimit
+    );
+    let mut rate_limit = Account::<RateLimit>::try_from(rate_limit_info)?;
     // If the current window has expired, open a fresh one. The window start
     // is fixed: update() never moves it, so steady traffic cannot keep a
     // window alive forever (see state/rate_limit.rs).
     let current_time = Clock::get()?.unix_timestamp;
-    if ctx.accounts.rate_limit.is_expired(current_time, ONE_HOUR) {
-        ctx.accounts.rate_limit.reset(current_time);
+    if rate_limit.is_expired(current_time, ONE_HOUR) {
+        rate_limit.reset(current_time);
         msg!("Rate limit window expired - opening a new window");
     }
 
     // Check if the transfer amount exceeds the rate limit
-    match ctx.accounts.rate_limit.limit_exceeded(amount) {
+    match rate_limit.limit_exceeded(amount) {
         // If the limit is exceeded, return an error to prevent the transfer from occurring
         true => {
             msg!("Transfer amount exceeds the rate limit");
             return Err(error!(crate::error::ErrorCode::RateLimitExceeded));
-        },
+        }
         // If the limit is not exceeded, update the rate limit account with the new amount transferred and allow the transfer to proceed
         false => {
-            ctx.accounts.rate_limit.update(amount);
+            rate_limit.update(amount);
             msg!("Transfer amount is within the rate limit, proceeding with transfer");
         }
     }
 
+    rate_limit.exit(ctx.program_id)?;
     Ok(())
 }
 
