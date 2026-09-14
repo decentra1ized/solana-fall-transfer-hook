@@ -3,7 +3,7 @@ mod helpers;
 
 use {
     anchor_lang::{
-        Id, InstructionData, ToAccountMetas,
+        AccountDeserialize, Id, InstructionData, ToAccountMetas,
         solana_program::instruction::Instruction,
         solana_program::system_instruction,
         system_program::ID as SYSTEM_PROGRAM_ID,
@@ -49,6 +49,16 @@ fn test_initialize() {
 
     let res = svm.send_transaction(tx);
     assert!(res.is_ok(), "Initialization failed: {:?}", res.err());
+
+    let account = svm
+        .get_account(&rate_limit)
+        .expect("rate-limit account should exist");
+    let mut data = account.data.as_slice();
+    let rate_limit_state = solana_fall_transfer_hook::RateLimit::try_deserialize(&mut data)
+        .expect("rate-limit account should deserialize");
+
+    assert_eq!(rate_limit_state.authority, payer.pubkey());
+    assert_eq!(rate_limit_state.mint, mint.pubkey());
 }
 
 #[test]
