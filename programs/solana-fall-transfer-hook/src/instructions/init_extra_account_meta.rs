@@ -36,9 +36,15 @@ pub fn extra_account_metas() -> Result<Vec<ExtraAccountMeta>> {
         // The seeds here must match the PDA seeds used to create the account
         // in `initialize.rs` and to load it in `transfer_hook.rs` (and the
         // test helpers), so all of them have to be updated together.
+        // Seeds reference accounts by their INDEX in the Execute instruction,
+        // not by name: this list is stored on chain and resolved by clients
+        // that know nothing about our field names. Execute's account order is
+        // 0 source, 1 mint, 2 destination, 3 owner, 4 extra_account_meta_list.
         ExtraAccountMeta::new_with_seeds(
             &[
                 Seed::Literal { bytes: b"rate_limit".to_vec() },
+                Seed::AccountKey { index: 1 },   // mint
+                Seed::AccountKey { index: 3 },   // owner of the source account
             ],
             false,                                  // is signer
             true,                                   // is writable

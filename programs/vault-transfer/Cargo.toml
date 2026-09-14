@@ -1,0 +1,31 @@
+[package]
+name = "vault-transfer"
+version = "0.1.0"
+description = "Moves hooked tokens from on-chain code"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "vault_transfer"
+
+[features]
+default = []
+cpi = ["no-entrypoint"]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build"]
+anchor-debug = []
+custom-heap = []
+custom-panic = []
+
+[dependencies]
+anchor-lang = "1.2.0"
+anchor-spl = "1.2.0"
+# `onchain::invoke_transfer_checked` resolves the hook's extra accounts and
+# appends them to the instruction metas. Anchor's own `transfer_checked` only
+# adds them to account_infos, so Token-2022 never sees them.
+spl-transfer-hook-interface = "2.1.0"
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(target_os, values("solana"))'] }

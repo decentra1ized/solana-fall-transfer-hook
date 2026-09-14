@@ -1,0 +1,19 @@
+
+# --- secrets: never commit these ---
+# Program keypairs, wherever they land. A private key in a repo is found by
+# bots within minutes; name the patterns explicitly rather than relying on
+# a build directory staying ignored.
+**/*-keypair.json
+**/id.json
+*.pem
+*.key
+
+# Local environment and credentials
+.env
+.env.*
+!.env.example
+
+# Editor and OS noise
+.DS_Store
+.idea/
+.vscode/

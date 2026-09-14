@@ -76,3 +76,60 @@ fn test_transfer_hook_rate_limit_exceeded() {
     let res = svm.send_transaction(tx);
     assert!(res.is_err(), "Transfer exceeding rate limit should fail");
 }
+
+/// The test that actually proves challenge 3.
+///
+/// Every other test here uses a single wallet, so they pass just as happily
+/// against the original program-wide bucket. Only two wallets on one mint can
+/// tell a shared limit from a per-owner one.
+#[test]
+fn each_owner_gets_their_own_bucket() {
+    let (mut svm, payer, program_id) = setup();
+    let mint = Keypair::new();
+
+    setup_mint_and_extra_metas(&mut svm, &payer, &mint, &program_id);
+
+    // A second sender, with a bucket of their own.
+    let alice = Keypair::new();
+    svm.airdrop(&alice.pubkey(), 1_000_000_000).unwrap();
+    helpers::initialize_rate_limit_for(&mut svm, &payer, &mint, &alice.pubkey(), &program_id);
+
+    let recipient = Keypair::new();
+    let dest_ata = create_ata(&mut svm, &payer, &recipient.pubkey(), &mint.pubkey());
+
+    let payer_ata = create_ata(&mut svm, &payer, &payer.pubkey(), &mint.pubkey());
+    let alice_ata = create_ata(&mut svm, &payer, &alice.pubkey(), &mint.pubkey());
+    mint_tokens(&mut svm, &payer, &mint.pubkey(), &payer_ata, 2_000_000);
+    mint_tokens(&mut svm, &payer, &mint.pubkey(), &alice_ata, 2_000_000);
+
+    // The payer spends their entire allowance.
+    let ix = build_transfer_with_hook_ix(
+        &payer_ata, &dest_ata, &mint.pubkey(), &payer.pubkey(), &program_id, 1_000_000, 9,
+    );
+    let blockhash = svm.latest_blockhash();
+    let msg = Message::new_with_blockhash(&[ix], Some(&payer.pubkey()), &blockhash);
+    let tx = VersionedTransaction::try_new(VersionedMessage::Legacy(msg), &[&payer]).unwrap();
+    assert!(svm.send_transaction(tx).is_ok(), "payer should reach their limit");
+
+    // And is now blocked, confirming the limit is real and not simply unused.
+    let ix = build_transfer_with_hook_ix(
+        &payer_ata, &dest_ata, &mint.pubkey(), &payer.pubkey(), &program_id, 1, 9,
+    );
+    let blockhash = svm.latest_blockhash();
+    let msg = Message::new_with_blockhash(&[ix], Some(&payer.pubkey()), &blockhash);
+    let tx = VersionedTransaction::try_new(VersionedMessage::Legacy(msg), &[&payer]).unwrap();
+    assert!(svm.send_transaction(tx).is_err(), "payer should be over their limit");
+
+    // Alice is untouched by any of that. Under the original shared bucket this
+    // is the assertion that fails.
+    let ix = build_transfer_with_hook_ix(
+        &alice_ata, &dest_ata, &mint.pubkey(), &alice.pubkey(), &program_id, 1_000_000, 9,
+    );
+    let blockhash = svm.latest_blockhash();
+    let msg = Message::new_with_blockhash(&[ix], Some(&alice.pubkey()), &blockhash);
+    let tx = VersionedTransaction::try_new(VersionedMessage::Legacy(msg), &[&alice]).unwrap();
+    assert!(
+        svm.send_transaction(tx).is_ok(),
+        "alice's allowance must not be spent by the payer",
+    );
+}
