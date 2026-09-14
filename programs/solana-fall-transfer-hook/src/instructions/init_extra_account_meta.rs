@@ -39,6 +39,8 @@ pub fn extra_account_metas() -> Result<Vec<ExtraAccountMeta>> {
         ExtraAccountMeta::new_with_seeds(
             &[
                 Seed::Literal { bytes: b"rate_limit".to_vec() },
+		Seed::AccountKey { index: 1 },  // mint  (position 1 in TransferHook accounts)
+		Seed::AccountKey { index: 3 },  // owner (position 3 in TransferHook accounts)
             ],
             false,                                  // is signer
             true,                                   // is writable
