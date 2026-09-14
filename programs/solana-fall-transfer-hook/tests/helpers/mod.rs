@@ -52,12 +52,28 @@ pub fn initialize_mint(svm: &mut LiteSVM, payer: &Keypair, mint: &Keypair, progr
     send_ix(svm, ix, payer, &[payer, mint]);
 }
 
-// For the challenge - Initialize the rate limit account and the extra account meta list for a given mint
-pub fn initialize_rate_limit(svm: &mut LiteSVM, payer: &Keypair, mint: &Keypair, program_id: &Address) {
-    let rate_limit = Pubkey::find_program_address(
-        &[b"rate_limit", mint.pubkey().as_ref(), payer.pubkey().as_ref()],
+/// Derives the rate limit PDA for one (mint, owner) pair.
+///
+/// The same seeds appear in `extra_account_metas()`, `initialize.rs` and
+/// `transfer_hook.rs`; all four have to agree or the runtime resolves a
+/// different account than the hook expects.
+pub fn rate_limit_pda(mint: &Pubkey, owner: &Pubkey, program_id: &Address) -> Pubkey {
+    Pubkey::find_program_address(
+        &[b"rate_limit", mint.as_ref(), owner.as_ref()],
         program_id,
-    ).0;
+    ).0
+}
+
+/// Opens a rate limit bucket for an arbitrary owner. `payer` funds it and need
+/// not be the owner, which is what lets one test give two wallets their own.
+pub fn initialize_rate_limit_for(
+    svm: &mut LiteSVM,
+    payer: &Keypair,
+    mint: &Keypair,
+    owner: &Pubkey,
+    program_id: &Address,
+) {
+    let rate_limit = rate_limit_pda(&mint.pubkey(), owner, program_id);
 
     let ix = Instruction::new_with_bytes(
         *program_id,
@@ -65,12 +81,17 @@ pub fn initialize_rate_limit(svm: &mut LiteSVM, payer: &Keypair, mint: &Keypair,
         solana_fall_transfer_hook::accounts::Initialize {
             payer: payer.pubkey(),
             mint: mint.pubkey(),
-            owner: payer.pubkey(),
+            owner: *owner,
             rate_limit,
             system_program: SYSTEM_PROGRAM_ID,
         }.to_account_metas(None),
     );
     send_ix(svm, ix, payer, &[payer]);
+}
+
+// For the challenge - Initialize the rate limit account and the extra account meta list for a given mint
+pub fn initialize_rate_limit(svm: &mut LiteSVM, payer: &Keypair, mint: &Keypair, program_id: &Address) {
+    initialize_rate_limit_for(svm, payer, mint, &payer.pubkey(), program_id);
 }
 
 pub fn initialize_extra_account_metas(svm: &mut LiteSVM, payer: &Keypair, mint: &Keypair, program_id: &Address) {
