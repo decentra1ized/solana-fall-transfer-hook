@@ -17,12 +17,21 @@ pub struct Initialize<'info> {
         space = ANCHOR_DISCRIMINATOR_SIZE + RateLimit::INIT_SPACE,
     )]
     pub rate_limit: Account<'info, RateLimit>,
+    /// The mint the rate limit is being created for. Must be a Token-2022 mint,
+    /// verified by the owner check in the handler.
+    pub mint: InterfaceAccount<'info, Mint>,
     pub system_program: Program<'info, System>,
 }
 
 pub fn handler(ctx: Context<Initialize>) -> Result<()> {
-    // For the challenge - Ensure the mint is a token-2022 mint by checking its owner (Pass the mint in the context and check its owner. 
-    // Consider saving the mint in the RateLimit struct if needed for future use.
+    // Ensure the mint is a Token-2022 mint by checking which program owns it.
+    // A standard SPL Token mint cannot have a transfer hook, so a rate limit on
+    // it would never be enforced. Deref because `.owner` yields a `&Pubkey`.
+    require_keys_eq!(
+        *ctx.accounts.mint.to_account_info().owner,
+        token_2022::ID,
+        ErrorCode::InvalidMint
+    );
 
     // Initialize the rate limit account with the authority, mint, max amount, and window start timestamp
     ctx.accounts.rate_limit.set_inner(RateLimit {
