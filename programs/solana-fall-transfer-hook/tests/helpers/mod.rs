@@ -54,6 +54,8 @@ pub fn initialize_mint(svm: &mut LiteSVM, payer: &Keypair, mint: &Keypair, progr
 
 // For the challenge - Initialize the rate limit account and the extra account meta list for a given mint
 pub fn initialize_rate_limit(svm: &mut LiteSVM, payer: &Keypair, mint: &Keypair, program_id: &Address) {
+    initialize_mint(svm, payer, mint, program_id);
+
     let rate_limit = Pubkey::find_program_address(
         &[b"rate_limit"],
         program_id,
@@ -64,6 +66,7 @@ pub fn initialize_rate_limit(svm: &mut LiteSVM, payer: &Keypair, mint: &Keypair,
         &solana_fall_transfer_hook::instruction::Initialize {}.data(),
         solana_fall_transfer_hook::accounts::Initialize {
             payer: payer.pubkey(),
+            mint: mint.pubkey(),
             rate_limit,
             system_program: SYSTEM_PROGRAM_ID,
         }.to_account_metas(None),
@@ -91,7 +94,6 @@ pub fn initialize_extra_account_metas(svm: &mut LiteSVM, payer: &Keypair, mint: 
 }
 
 pub fn setup_mint_and_extra_metas(svm: &mut LiteSVM, payer: &Keypair, mint: &Keypair, program_id: &Address) {
-    initialize_mint(svm, payer, mint, program_id);
     initialize_rate_limit(svm, payer, mint, program_id);
     initialize_extra_account_metas(svm, payer, mint, program_id);
 }

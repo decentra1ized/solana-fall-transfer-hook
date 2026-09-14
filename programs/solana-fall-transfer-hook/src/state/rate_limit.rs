@@ -4,6 +4,7 @@ use anchor_lang::prelude::*;
 #[derive(InitSpace)]
 pub struct RateLimit {
     pub authority: Pubkey,          // The account that can update the rate limit
+    pub mint: Pubkey,               // The mint this rate limit applies to
     pub max_amount: u64,            // The maximum amount that can be transferred within one window
     pub window_start: i64,          // The timestamp at which the current window opened
     pub amount_transferred: u64,    // The total amount transferred within the current window
@@ -21,7 +22,7 @@ impl RateLimit {
     // Note: this deliberately does NOT touch `window_start`. The window is
     // fixed at the moment it opened; if every transfer refreshed the
     // timestamp, steady traffic (at least one transfer per window) would
-    // keep the window alive forever and the running total would never
+    // keep the window alive forever and the running total per window would never
     // reset - permanently capping an active holder.
     pub fn update(&mut self, amount: u64) {
         self.amount_transferred = self.amount_transferred.saturating_add(amount);

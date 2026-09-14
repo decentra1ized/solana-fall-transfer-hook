@@ -19,7 +19,6 @@ fn test_initialize_extra_account_meta_list() {
     let (mut svm, payer, program_id) = setup();
     let mint = Keypair::new();
 
-    initialize_mint(&mut svm, &payer, &mint, &program_id);
     initialize_rate_limit(&mut svm, &payer, &mint, &program_id);
 
     let extra_account_meta_list = Pubkey::find_program_address(
