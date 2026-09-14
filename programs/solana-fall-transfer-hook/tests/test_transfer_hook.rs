@@ -14,7 +14,7 @@ use helpers::{
 
 #[test]
 fn test_transfer_hook() {
-    let (mut svm, payer, program_id) = setup();
+    let (mut svm, payer, program_id, token_mover_id) = setup();
     let mint = Keypair::new();
 
     setup_mint_and_extra_metas(&mut svm, &payer, &mint, &program_id);
@@ -42,7 +42,7 @@ fn test_transfer_hook() {
 
 #[test]
 fn test_transfer_hook_rate_limit_exceeded() {
-    let (mut svm, payer, program_id) = setup();
+    let (mut svm, payer, program_id, token_mover_id) = setup();
     let mint = Keypair::new();
 
     setup_mint_and_extra_metas(&mut svm, &payer, &mint, &program_id);

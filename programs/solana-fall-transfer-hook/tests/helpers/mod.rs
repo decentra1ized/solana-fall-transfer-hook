@@ -19,16 +19,20 @@ use {
     solana_transaction::versioned::VersionedTransaction,
 };
 
-pub fn setup() -> (LiteSVM, Keypair, Address) {
+pub fn setup() -> (LiteSVM, Keypair, Address, Address) {
     let program_id = solana_fall_transfer_hook::id();
     let mut svm = LiteSVM::new();
     let bytes = include_bytes!("../../../../target/deploy/solana_fall_transfer_hook.so");
     svm.add_program(program_id, bytes).unwrap();
 
+    let token_mover_id = token_mover::id();
+    let mover_bytes = include_bytes!("../../../../target/deploy/token_mover.so");
+    svm.add_program(token_mover_id, mover_bytes).unwrap();
+
     let payer = Keypair::new();
     svm.airdrop(&payer.pubkey(), 1_000_000_000).unwrap();
 
-    (svm, payer, program_id)
+    (svm, payer, program_id, token_mover_id)
 }
 
 pub fn send_ix(svm: &mut LiteSVM, ix: Instruction, payer: &Keypair, signers: &[&Keypair]) {
@@ -55,7 +59,7 @@ pub fn initialize_mint(svm: &mut LiteSVM, payer: &Keypair, mint: &Keypair, progr
 // For the challenge - Initialize the rate limit account and the extra account meta list for a given mint
 pub fn initialize_rate_limit(svm: &mut LiteSVM, payer: &Keypair, mint: &Keypair, program_id: &Address) {
     let rate_limit = Pubkey::find_program_address(
-        &[b"rate_limit"],
+        &[b"rate_limit", mint.pubkey().as_ref(), payer.pubkey().as_ref()],
         program_id,
     ).0;
 
@@ -64,6 +68,7 @@ pub fn initialize_rate_limit(svm: &mut LiteSVM, payer: &Keypair, mint: &Keypair,
         &solana_fall_transfer_hook::instruction::Initialize {}.data(),
         solana_fall_transfer_hook::accounts::Initialize {
             payer: payer.pubkey(),
+            mint: mint.pubkey(),
             rate_limit,
             system_program: SYSTEM_PROGRAM_ID,
         }.to_account_metas(None),
@@ -146,7 +151,7 @@ pub fn build_transfer_with_hook_ix(
     ).0;
 
     let rate_limit = Pubkey::find_program_address(
-        &[b"rate_limit"],
+        &[b"rate_limit", mint.as_ref(), owner.as_ref()],
         program_id,
     ).0;
 
@@ -155,4 +160,108 @@ pub fn build_transfer_with_hook_ix(
     ix.accounts.push(AccountMeta::new(rate_limit, false));
 
     ix
+}
+
+pub fn build_transfer_via_mover_ix(
+    source_ata: &Pubkey,
+    dest_ata: &Pubkey,
+    mint: &Pubkey,
+    owner: &Pubkey,
+    hook_program_id: &Address,
+    mover_program_id: &Address,
+    amount: u64,
+    decimals: u8,
+) -> Instruction {
+    let mut ix = Instruction::new_with_bytes(
+        *mover_program_id,
+        &token_mover::instruction::TransferWithHook { amount, decimals }.data(),
+        token_mover::accounts::TransferWithHook {
+            owner: *owner,
+            source_token: *source_ata,
+            mint: *mint,
+            destination_token: *dest_ata,
+            token_program: Token2022::id(),
+        }.to_account_metas(None),
+    );
+
+    let extra_account_meta_list = Pubkey::find_program_address(
+        &[b"extra-account-metas", mint.as_ref()],
+        hook_program_id,
+    ).0;
+
+    let rate_limit = Pubkey::find_program_address(
+        &[b"rate_limit", mint.as_ref(), owner.as_ref()],
+        hook_program_id,
+    ).0;
+
+    ix.accounts.push(AccountMeta::new_readonly(*hook_program_id, false));
+    ix.accounts.push(AccountMeta::new_readonly(extra_account_meta_list, false));
+    ix.accounts.push(AccountMeta::new(rate_limit, false));
+
+    ix
+}
+
+
+#[test]
+fn test_transfer_via_mover_succeeds() {
+    let (mut svm, payer, program_id, mover_program_id) = setup();
+    let mint = Keypair::new();
+
+    setup_mint_and_extra_metas(&mut svm, &payer, &mint, &program_id);
+
+    let source_ata = create_ata(&mut svm, &payer, &payer.pubkey(), &mint.pubkey());
+    let dest_wallet = Keypair::new();
+    let dest_ata = create_ata(&mut svm, &payer, &dest_wallet.pubkey(), &mint.pubkey());
+
+    mint_tokens(&mut svm, &payer, &mint.pubkey(), &source_ata, 1_000_000_000);
+
+    let ix = build_transfer_via_mover_ix(
+        &source_ata,
+        &dest_ata,
+        &mint.pubkey(),
+        &payer.pubkey(),
+        &program_id,
+        &mover_program_id,
+        100,
+        9,
+    );
+
+    send_ix(&mut svm, ix, &payer, &[&payer]);
+    // if send_ix panics on failure, reaching this point means success
+}
+
+#[test]
+fn test_transfer_via_mover_rate_limit_exceeded() {
+    let (mut svm, payer, program_id, mover_program_id) = setup();
+    let mint = Keypair::new();
+
+    setup_mint_and_extra_metas(&mut svm, &payer, &mint, &program_id);
+
+    let source_ata = create_ata(&mut svm, &payer, &payer.pubkey(), &mint.pubkey());
+    let dest_wallet = Keypair::new();
+    let dest_ata = create_ata(&mut svm, &payer, &dest_wallet.pubkey(), &mint.pubkey());
+
+    mint_tokens(&mut svm, &payer, &mint.pubkey(), &source_ata, 10_000_000_000);
+
+    // First transfer: exactly at the cap, should succeed
+    let ix1 = build_transfer_via_mover_ix(
+        &source_ata, &dest_ata, &mint.pubkey(), &payer.pubkey(),
+        &program_id, &mover_program_id, 1_000_000, 9,
+    );
+    send_ix(&mut svm, ix1, &payer, &[&payer]);
+
+    // Second transfer: 1 more unit, should fail with RateLimitExceeded (0x1771)
+    let ix2 = build_transfer_via_mover_ix(
+        &source_ata, &dest_ata, &mint.pubkey(), &payer.pubkey(),
+        &program_id, &mover_program_id, 1, 9,
+    );
+
+    let blockhash = svm.latest_blockhash();
+    let msg = solana_message::Message::new_with_blockhash(&[ix2], Some(&payer.pubkey()), &blockhash);
+    let tx = solana_transaction::versioned::VersionedTransaction::try_new(
+        solana_message::VersionedMessage::Legacy(msg), &[&payer],
+    ).unwrap();
+
+    let res = svm.send_transaction(tx);
+    assert!(res.is_err(), "Expected second transfer to fail due to rate limit");
 }
