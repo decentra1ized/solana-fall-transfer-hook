@@ -35,6 +35,7 @@ fn test_initialize() {
             payer: payer.pubkey(),
             rate_limit,
             system_program: SYSTEM_PROGRAM_ID,
+            mint: mint.pubkey(),
         }.to_account_metas(None),
     );
 
