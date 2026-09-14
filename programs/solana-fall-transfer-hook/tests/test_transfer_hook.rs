@@ -9,7 +9,7 @@ use {
 };
 
 use helpers::{
-    setup, setup_mint_and_extra_metas, create_ata, mint_tokens, build_transfer_with_hook_ix,
+    setup, setup_mint_and_extra_metas, create_ata, mint_tokens, build_transfer_with_hook_ix, initialize_rate_limit
 };
 
 #[test]
@@ -75,4 +75,48 @@ fn test_transfer_hook_rate_limit_exceeded() {
     let tx = VersionedTransaction::try_new(VersionedMessage::Legacy(msg), &[&payer]).unwrap();
     let res = svm.send_transaction(tx);
     assert!(res.is_err(), "Transfer exceeding rate limit should fail");
+}
+
+
+#[test]
+fn test_per_owner_rate_limit() {
+    let (mut svm, payer, program_id) = setup();
+    let mint = Keypair::new();
+
+    setup_mint_and_extra_metas(&mut svm, &payer, &mint, &program_id);
+
+    // Second wallet
+    let payer2 = Keypair::new();
+    svm.airdrop(&payer2.pubkey(), 1_000_000_000).unwrap();
+
+    let source1 = create_ata(&mut svm, &payer, &payer.pubkey(), &mint.pubkey());
+    let source2 = create_ata(&mut svm, &payer, &payer2.pubkey(), &mint.pubkey());
+    
+    let dest_wallet = Keypair::new();
+    svm.airdrop(&dest_wallet.pubkey(), 1_000_000_000).unwrap();
+    let dest = create_ata(&mut svm, &payer, &dest_wallet.pubkey(), &mint.pubkey());
+
+    mint_tokens(&mut svm, &payer, &mint.pubkey(), &source1, 1_000_000);
+    mint_tokens(&mut svm, &payer, &mint.pubkey(), &source2, 1_000_000);
+
+    // Create personal rate limit for the second wallet
+    initialize_rate_limit(&mut svm, &payer2, &mint, &program_id);
+
+    // First wallet transfers 1_000_000
+    let ix1 = build_transfer_with_hook_ix(
+        &source1, &dest, &mint.pubkey(), &payer.pubkey(), &program_id, 1_000_000, 9,
+    );
+    let blockhash = svm.latest_blockhash();
+    let msg = Message::new_with_blockhash(&[ix1], Some(&payer.pubkey()), &blockhash);
+    let tx = VersionedTransaction::try_new(VersionedMessage::Legacy(msg), &[&payer]).unwrap();
+    assert!(svm.send_transaction(tx).is_ok(), "First wallet should succeed");
+
+    // Second wallet also transfers 1_000_000
+    let ix2 = build_transfer_with_hook_ix(
+        &source2, &dest, &mint.pubkey(), &payer2.pubkey(), &program_id, 1_000_000, 9,
+    );
+    let blockhash = svm.latest_blockhash();
+    let msg = Message::new_with_blockhash(&[ix2], Some(&payer2.pubkey()), &blockhash);
+    let tx = VersionedTransaction::try_new(VersionedMessage::Legacy(msg), &[&payer2]).unwrap();
+    assert!(svm.send_transaction(tx).is_ok(), "Second wallet should also succeed");
 }
