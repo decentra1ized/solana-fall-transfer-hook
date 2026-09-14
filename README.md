@@ -282,11 +282,12 @@ The program above works, but it takes a deliberate shortcut: there is a single, 
 
 2. **Remember the mint on the account.** If a rate limit should know which mint it belongs to, add a `mint` field back to the `RateLimit` struct and set it in the handler. The `InitSpace` derive updates the account's size accounting for you.
 
-3. **Make the rate limit per-mint and per-owner.** Today the PDA is derived from a single `"rate_limit"` seed, so everyone shares one bucket. Add the mint and the owner as extra seeds so each user gets their own rate limit per mint. The catch is that the seeds live in **four** places that must all agree:
+3. **Make the rate limit per-mint and per-owner.** Today the PDA is derived from a single `"rate_limit"` seed, so everyone shares one bucket. Add the mint and the owner as extra seeds so each user gets their own rate limit per mint. The catch is that the seeds live in **five** places that must all agree:
    - `extra_account_metas()` in `init_extra_account_meta.rs` - what the runtime uses to resolve the account at transfer time,
    - the `Initialize` context in `initialize.rs` - where the account is created,
    - the `TransferHook` context in `transfer_hook.rs` - where the account is loaded,
-   - the test helpers in `tests/helpers/mod.rs`.
+   - the test helpers in `tests/helpers/mod.rs`,
+   - `tests/test_initialize.rs`, which derives the address itself.
 
    In `extra_account_metas()` the extra seeds don't reference the mint and owner by name - they reference accounts by their **index** in the transfer hook's execute instruction. Work out which index is the mint and which is the owner.
 
