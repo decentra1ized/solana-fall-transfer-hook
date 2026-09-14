@@ -10,11 +10,10 @@ use {
     },
     anchor_spl::token::{spl_token, Mint as LegacyMint, Token},
     solana_keypair::Keypair,
-    solana_pubkey::Pubkey,
     solana_signer::Signer,
 };
 
-use helpers::{setup, initialize_mint, send_ix};
+use helpers::{setup, initialize_mint, rate_limit_pda, send_ix};
 
 #[test]
 fn test_initialize() {
@@ -25,10 +24,7 @@ fn test_initialize() {
     initialize_mint(&mut svm, &payer, &mint, &program_id);
 
     // Then initialize the rate limit account
-    let rate_limit = Pubkey::find_program_address(
-        &[b"rate_limit"],
-        &program_id,
-    ).0;
+    let rate_limit = rate_limit_pda(&mint.pubkey(), &payer.pubkey(), &program_id);
 
     let instruction = Instruction::new_with_bytes(
         program_id,
@@ -84,10 +80,7 @@ fn test_initialize_rejects_legacy_token_mint() {
     ).unwrap();
     send_ix(&mut svm, initialize_mint, &payer, &[&payer]);
 
-    let rate_limit = Pubkey::find_program_address(
-        &[b"rate_limit"],
-        &program_id,
-    ).0;
+    let rate_limit = rate_limit_pda(&mint.pubkey(), &payer.pubkey(), &program_id);
     let instruction = Instruction::new_with_bytes(
         program_id,
         &solana_fall_transfer_hook::instruction::Initialize {}.data(),
