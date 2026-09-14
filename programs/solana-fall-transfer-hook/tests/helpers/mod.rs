@@ -25,6 +25,11 @@ pub fn setup() -> (LiteSVM, Keypair, Address) {
     let bytes = include_bytes!("../../../../target/deploy/solana_fall_transfer_hook.so");
     svm.add_program(program_id, bytes).unwrap();
 
+    // Also load the token-mover program so tests can drive an on-chain
+    // transfer_checked CPI through it (checkpoint 6).
+    let mover_bytes = include_bytes!("../../../../target/deploy/token_mover.so");
+    svm.add_program(token_mover::id(), mover_bytes).unwrap();
+
     let payer = Keypair::new();
     svm.airdrop(&payer.pubkey(), 1_000_000_000).unwrap();
 
@@ -156,4 +161,48 @@ pub fn build_transfer_with_hook_ix(
     ix.accounts.push(AccountMeta::new(rate_limit, false));
 
     ix
+}
+
+// Build a token-mover `transfer_with_hook` instruction. Instead of assembling
+// transfer_checked + the hook accounts on the client (as build_transfer_with_hook_ix
+// does), the mover does that on-chain, so the client only passes the mover's own
+// accounts plus three remaining accounts: the hook program, the mint's
+// ExtraAccountMetaList, and the per-(mint, owner) rate_limit PDA.
+pub fn build_token_mover_transfer_ix(
+    payer: &Keypair,
+    source_ata: &Pubkey,
+    dest_ata: &Pubkey,
+    mint: &Pubkey,
+    program_id: &Address, // the transfer-hook program id
+    amount: u64,
+) -> Instruction {
+    let extra_account_meta_list = Pubkey::find_program_address(
+        &[b"extra-account-metas", mint.as_ref()],
+        program_id,
+    ).0;
+
+    let rate_limit = Pubkey::find_program_address(
+        &[b"rate_limit", mint.as_ref(), payer.pubkey().as_ref()],
+        program_id,
+    ).0;
+
+    let mut metas = token_mover::accounts::TransferWithHook {
+        owner: payer.pubkey(),
+        source_token: *source_ata,
+        mint: *mint,
+        destination_token: *dest_ata,
+        token_program: Token2022::id(),
+    }.to_account_metas(None);
+
+    // Remaining accounts, in the order the mover expects: [0] hook program,
+    // [1] validation account, [2] rate_limit (writable).
+    metas.push(AccountMeta::new_readonly(*program_id, false));
+    metas.push(AccountMeta::new_readonly(extra_account_meta_list, false));
+    metas.push(AccountMeta::new(rate_limit, false));
+
+    Instruction::new_with_bytes(
+        token_mover::id(),
+        &token_mover::instruction::TransferWithHook { amount }.data(),
+        metas,
+    )
 }

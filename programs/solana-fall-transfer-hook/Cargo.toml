@@ -46,6 +46,10 @@ solana-transaction = "4.1.6"
 solana-signer = "3.0.1"
 solana-keypair = "3.1.2"
 solana-pubkey = "4.2.1"
+# The token-mover program under test. `no-entrypoint` keeps its BPF entrypoint
+# out of the host test binary while still exposing its `instruction`/`accounts`
+# types and program id for building the CPI transfer instruction.
+token-mover = { path = "../token-mover", features = ["no-entrypoint"] }
 
 
 [lints.rust]
