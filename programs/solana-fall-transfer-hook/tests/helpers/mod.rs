@@ -1,15 +1,14 @@
 use {
     anchor_lang::{
-        Id, InstructionData, ToAccountMetas,
         solana_program::instruction::{AccountMeta, Instruction},
         system_program::ID as SYSTEM_PROGRAM_ID,
+        Id, InstructionData, ToAccountMetas,
     },
     anchor_spl::{
         associated_token::{
-            spl_associated_token_account,
-            get_associated_token_address_with_program_id,
+            get_associated_token_address_with_program_id, spl_associated_token_account,
         },
-        token_2022::{Token2022, spl_token_2022},
+        token_2022::{spl_token_2022, Token2022},
     },
     litesvm::LiteSVM,
     solana_keypair::{Address, Keypair},
@@ -22,8 +21,14 @@ use {
 pub fn setup() -> (LiteSVM, Keypair, Address) {
     let program_id = solana_fall_transfer_hook::id();
     let mut svm = LiteSVM::new();
-    let bytes = include_bytes!("../../../../target/deploy/solana_fall_transfer_hook.so");
-    svm.add_program(program_id, bytes).unwrap();
+    let deploy_dir = concat!(env!("CARGO_MANIFEST_DIR"), "/../../target/deploy");
+    let hook_bytes = std::fs::read(format!("{deploy_dir}/solana_fall_transfer_hook.so"))
+        .expect("run `anchor build` before `cargo test`");
+    svm.add_program(program_id, &hook_bytes).unwrap();
+    let token_mover_bytes = std::fs::read(format!("{deploy_dir}/token_mover.so"))
+        .expect("run `anchor build` before `cargo test`");
+    svm.add_program(token_mover::id(), &token_mover_bytes)
+        .unwrap();
 
     let payer = Keypair::new();
     svm.airdrop(&payer.pubkey(), 1_000_000_000).unwrap();
@@ -32,10 +37,19 @@ pub fn setup() -> (LiteSVM, Keypair, Address) {
 }
 
 pub fn send_ix(svm: &mut LiteSVM, ix: Instruction, payer: &Keypair, signers: &[&Keypair]) {
+    send_ix_result(svm, ix, payer, signers).unwrap();
+}
+
+pub fn send_ix_result(
+    svm: &mut LiteSVM,
+    ix: Instruction,
+    payer: &Keypair,
+    signers: &[&Keypair],
+) -> Result<litesvm::types::TransactionMetadata, litesvm::types::FailedTransactionMetadata> {
     let blockhash = svm.latest_blockhash();
     let msg = Message::new_with_blockhash(&[ix], Some(&payer.pubkey()), &blockhash);
     let tx = VersionedTransaction::try_new(VersionedMessage::Legacy(msg), signers).unwrap();
-    svm.send_transaction(tx).unwrap();
+    svm.send_transaction(tx)
 }
 
 pub fn initialize_mint(svm: &mut LiteSVM, payer: &Keypair, mint: &Keypair, program_id: &Address) {
@@ -47,35 +61,54 @@ pub fn initialize_mint(svm: &mut LiteSVM, payer: &Keypair, mint: &Keypair, progr
             mint: mint.pubkey(),
             system_program: SYSTEM_PROGRAM_ID,
             token_program: Token2022::id(),
-        }.to_account_metas(None),
+        }
+        .to_account_metas(None),
     );
     send_ix(svm, ix, payer, &[payer, mint]);
 }
 
 // For the challenge - Initialize the rate limit account and the extra account meta list for a given mint
-pub fn initialize_rate_limit(svm: &mut LiteSVM, payer: &Keypair, mint: &Keypair, program_id: &Address) {
+pub fn initialize_rate_limit(
+    svm: &mut LiteSVM,
+    payer: &Keypair,
+    mint: &Keypair,
+    program_id: &Address,
+) {
     let rate_limit = Pubkey::find_program_address(
-        &[b"rate_limit"],
+        &[
+            b"rate_limit",
+            mint.pubkey().as_ref(),
+            payer.pubkey().as_ref(),
+        ],
         program_id,
-    ).0;
+    )
+    .0;
 
     let ix = Instruction::new_with_bytes(
         *program_id,
         &solana_fall_transfer_hook::instruction::Initialize {}.data(),
         solana_fall_transfer_hook::accounts::Initialize {
             payer: payer.pubkey(),
+            mint: mint.pubkey(),
             rate_limit,
             system_program: SYSTEM_PROGRAM_ID,
-        }.to_account_metas(None),
+        }
+        .to_account_metas(None),
     );
     send_ix(svm, ix, payer, &[payer]);
 }
 
-pub fn initialize_extra_account_metas(svm: &mut LiteSVM, payer: &Keypair, mint: &Keypair, program_id: &Address) {
+pub fn initialize_extra_account_metas(
+    svm: &mut LiteSVM,
+    payer: &Keypair,
+    mint: &Keypair,
+    program_id: &Address,
+) {
     let extra_account_meta_list = Pubkey::find_program_address(
         &[b"extra-account-metas", mint.pubkey().as_ref()],
         program_id,
-    ).0;
+    )
+    .0;
 
     let ix = Instruction::new_with_bytes(
         *program_id,
@@ -85,12 +118,18 @@ pub fn initialize_extra_account_metas(svm: &mut LiteSVM, payer: &Keypair, mint: 
             mint: mint.pubkey(),
             extra_account_meta_list,
             system_program: SYSTEM_PROGRAM_ID,
-        }.to_account_metas(None),
+        }
+        .to_account_metas(None),
     );
     send_ix(svm, ix, payer, &[payer]);
 }
 
-pub fn setup_mint_and_extra_metas(svm: &mut LiteSVM, payer: &Keypair, mint: &Keypair, program_id: &Address) {
+pub fn setup_mint_and_extra_metas(
+    svm: &mut LiteSVM,
+    payer: &Keypair,
+    mint: &Keypair,
+    program_id: &Address,
+) {
     initialize_mint(svm, payer, mint, program_id);
     initialize_rate_limit(svm, payer, mint, program_id);
     initialize_extra_account_metas(svm, payer, mint, program_id);
@@ -116,7 +155,8 @@ pub fn mint_tokens(svm: &mut LiteSVM, payer: &Keypair, mint: &Pubkey, dest: &Pub
         &payer.pubkey(),
         &[],
         amount,
-    ).unwrap();
+    )
+    .unwrap();
     send_ix(svm, ix, payer, &[payer]);
 }
 
@@ -138,20 +178,58 @@ pub fn build_transfer_with_hook_ix(
         &[],
         amount,
         decimals,
-    ).unwrap();
+    )
+    .unwrap();
 
-    let extra_account_meta_list = Pubkey::find_program_address(
-        &[b"extra-account-metas", mint.as_ref()],
-        program_id,
-    ).0;
+    let extra_account_meta_list =
+        Pubkey::find_program_address(&[b"extra-account-metas", mint.as_ref()], program_id).0;
+
+    let rate_limit =
+        Pubkey::find_program_address(&[b"rate_limit", mint.as_ref(), owner.as_ref()], program_id).0;
+
+    ix.accounts
+        .push(AccountMeta::new_readonly(*program_id, false));
+    ix.accounts
+        .push(AccountMeta::new_readonly(extra_account_meta_list, false));
+    ix.accounts.push(AccountMeta::new(rate_limit, false));
+
+    ix
+}
+
+pub fn build_mover_transfer_with_hook_ix(
+    source_ata: &Pubkey,
+    dest_ata: &Pubkey,
+    mint: &Pubkey,
+    owner: &Pubkey,
+    hook_program_id: &Address,
+    amount: u64,
+) -> Instruction {
+    let mut ix = Instruction::new_with_bytes(
+        token_mover::id(),
+        &token_mover::instruction::TransferWithHook { amount }.data(),
+        token_mover::accounts::TransferWithHook {
+            owner: *owner,
+            source_token: *source_ata,
+            mint: *mint,
+            destination_token: *dest_ata,
+            token_program: Token2022::id(),
+        }
+        .to_account_metas(None),
+    );
+
+    let extra_account_meta_list =
+        Pubkey::find_program_address(&[b"extra-account-metas", mint.as_ref()], hook_program_id).0;
 
     let rate_limit = Pubkey::find_program_address(
-        &[b"rate_limit"],
-        program_id,
-    ).0;
+        &[b"rate_limit", mint.as_ref(), owner.as_ref()],
+        hook_program_id,
+    )
+    .0;
 
-    ix.accounts.push(AccountMeta::new_readonly(*program_id, false));
-    ix.accounts.push(AccountMeta::new_readonly(extra_account_meta_list, false));
+    ix.accounts
+        .push(AccountMeta::new_readonly(*hook_program_id, false));
+    ix.accounts
+        .push(AccountMeta::new_readonly(extra_account_meta_list, false));
     ix.accounts.push(AccountMeta::new(rate_limit, false));
 
     ix
