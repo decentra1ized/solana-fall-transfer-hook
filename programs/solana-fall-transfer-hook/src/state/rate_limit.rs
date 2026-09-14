@@ -7,6 +7,7 @@ pub struct RateLimit {
     pub max_amount: u64,            // The maximum amount that can be transferred within one window
     pub window_start: i64,          // The timestamp at which the current window opened
     pub amount_transferred: u64,    // The total amount transferred within the current window
+    pub mint: Pubkey,
 }
 
 impl RateLimit {
@@ -39,4 +40,6 @@ impl RateLimit {
     }
 
     pub const MAX_AMOUNT: u64 = 1_000_000; // Example max amount
+
+   
 }

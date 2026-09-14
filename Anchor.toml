@@ -7,6 +7,10 @@ skip-lint = false
 
 [programs.localnet]
 solana_fall_transfer_hook = "2JfEsBs1CWdqsrgrPzqZywenRgjTP1cRwuybYyRtccuM"
+token-mover = "2ey6hxim9uPPFKRoQVHV1AtP7yiLKRnagdU1PVpMNvj1"
+
+[registry]
+url = "https://api.apr.dev"
 
 [provider]
 cluster = "localnet"
@@ -14,5 +18,3 @@ wallet = "~/.config/solana/id.json"
 
 [scripts]
 test = "cargo test"
-
-[hooks]

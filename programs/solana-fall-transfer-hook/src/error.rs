@@ -10,4 +10,6 @@ pub enum ErrorCode {
     InvalidMint,
     #[msg("Transfer hook invoked outside of an active transfer")]
     NotTransferring,
+    #[msg("Mint must be owned by Token-2022")]
+    InvalidMintOwner,
 }
