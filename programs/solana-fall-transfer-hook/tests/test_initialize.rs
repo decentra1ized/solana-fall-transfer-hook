@@ -24,7 +24,11 @@ fn test_initialize() {
 
     // Then initialize the rate limit account
     let rate_limit = Pubkey::find_program_address(
-        &[b"rate_limit"],
+        &[
+            b"rate_limit",
+            mint.pubkey().as_ref(),
+            payer.pubkey().as_ref(),
+        ],
         &program_id,
     ).0;
 
