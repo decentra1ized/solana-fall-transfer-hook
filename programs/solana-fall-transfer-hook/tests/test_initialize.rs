@@ -16,7 +16,7 @@ use helpers::{setup, initialize_mint};
 
 #[test]
 fn test_initialize() {
-    let (mut svm, payer, program_id) = setup();
+    let (mut svm, payer, program_id, _mover_id) = setup();
     let mint = Keypair::new();
 
     initialize_mint(&mut svm, &payer, &mint, &program_id);
