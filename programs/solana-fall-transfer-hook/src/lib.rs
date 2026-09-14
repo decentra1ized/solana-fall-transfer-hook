@@ -36,5 +36,4 @@ pub mod solana_fall_transfer_hook {
     pub fn transfer_hook(ctx: Context<TransferHook>, amount: u64) -> Result<()> {
         transfer_hook::handler(ctx, amount)
     }
-
 }
