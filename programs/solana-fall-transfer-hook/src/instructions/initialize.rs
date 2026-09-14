@@ -7,19 +7,21 @@ use crate::{ANCHOR_DISCRIMINATOR_SIZE, RateLimit, error::ErrorCode};
 pub struct Initialize<'info> {
     #[account(mut)]
     pub payer: Signer<'info>,
+    /// The mint the rate limit is being created for. Must be a Token-2022 mint,
+    /// verified by the owner check in the handler. Declared before `rate_limit`
+    /// so its key can be used as a PDA seed below.
+    pub mint: InterfaceAccount<'info, Mint>,
     #[account(
         init,
         payer = payer,
-        // Unique, program-wide rate limit account. See the CHALLENGE note in
-        // `init_extra_account_meta.rs` for making this per-mint/per-owner.
-        seeds = [b"rate_limit"],
+        // Per-mint, per-owner rate limit account. These seeds MUST stay in sync
+        // with `transfer_hook.rs`, `init_extra_account_meta.rs`, and the test
+        // helpers, or the derived addresses won't match.
+        seeds = [b"rate_limit", mint.key().as_ref(), payer.key().as_ref()],
         bump,
         space = ANCHOR_DISCRIMINATOR_SIZE + RateLimit::INIT_SPACE,
     )]
     pub rate_limit: Account<'info, RateLimit>,
-    /// The mint the rate limit is being created for. Must be a Token-2022 mint,
-    /// verified by the owner check in the handler.
-    pub mint: InterfaceAccount<'info, Mint>,
     pub system_program: Program<'info, System>,
 }
 
