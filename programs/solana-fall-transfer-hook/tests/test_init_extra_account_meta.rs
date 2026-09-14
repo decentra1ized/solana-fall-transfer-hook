@@ -16,7 +16,7 @@ use helpers::{setup, send_ix, initialize_mint, initialize_rate_limit};
 
 #[test]
 fn test_initialize_extra_account_meta_list() {
-    let (mut svm, payer, program_id) = setup();
+    let (mut svm, payer, program_id, _mover_id) = setup();
     let mint = Keypair::new();
 
     initialize_mint(&mut svm, &payer, &mint, &program_id);
