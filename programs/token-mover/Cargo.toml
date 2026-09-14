@@ -1,0 +1,34 @@
+[package]
+name = "token-mover"
+version = "0.1.0"
+description = "Created with Anchor"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "token_mover"
+
+[features]
+default = []
+cpi = ["no-entrypoint"]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build"]
+anchor-debug = []
+custom-heap = []
+custom-panic = []
+
+
+[dependencies]
+anchor-lang = "1.2.0"
+anchor-spl = "1.2.0"
+# `add_extra_accounts_for_execute_cpi` lives in this crate's `onchain` module.
+# It reads the mint's ExtraAccountMetaList and appends the exact extra accounts
+# (here, the rate_limit PDA) that Token-2022 must forward to the hook program
+# when we CPI into `transfer_checked`, so the rate limit is enforced.
+spl-transfer-hook-interface = "2.1.0"
+
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(target_os, values("solana"))'] }

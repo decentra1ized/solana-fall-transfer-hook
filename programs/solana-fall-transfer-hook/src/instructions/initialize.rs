@@ -7,12 +7,17 @@ use crate::{ANCHOR_DISCRIMINATOR_SIZE, RateLimit, error::ErrorCode};
 pub struct Initialize<'info> {
     #[account(mut)]
     pub payer: Signer<'info>,
+    /// The mint the rate limit is being created for. Must be a Token-2022 mint,
+    /// verified by the owner check in the handler. Declared before `rate_limit`
+    /// so its key can be used as a PDA seed below.
+    pub mint: InterfaceAccount<'info, Mint>,
     #[account(
         init,
         payer = payer,
-        // Unique, program-wide rate limit account. See the CHALLENGE note in
-        // `init_extra_account_meta.rs` for making this per-mint/per-owner.
-        seeds = [b"rate_limit"],
+        // Per-mint, per-owner rate limit account. These seeds MUST stay in sync
+        // with `transfer_hook.rs`, `init_extra_account_meta.rs`, and the test
+        // helpers, or the derived addresses won't match.
+        seeds = [b"rate_limit", mint.key().as_ref(), payer.key().as_ref()],
         bump,
         space = ANCHOR_DISCRIMINATOR_SIZE + RateLimit::INIT_SPACE,
     )]
@@ -21,12 +26,19 @@ pub struct Initialize<'info> {
 }
 
 pub fn handler(ctx: Context<Initialize>) -> Result<()> {
-    // For the challenge - Ensure the mint is a token-2022 mint by checking its owner (Pass the mint in the context and check its owner. 
-    // Consider saving the mint in the RateLimit struct if needed for future use.
+    // Ensure the mint is a Token-2022 mint by checking which program owns it.
+    // A standard SPL Token mint cannot have a transfer hook, so a rate limit on
+    // it would never be enforced. Deref because `.owner` yields a `&Pubkey`.
+    require_keys_eq!(
+        *ctx.accounts.mint.to_account_info().owner,
+        token_2022::ID,
+        ErrorCode::InvalidMint
+    );
 
     // Initialize the rate limit account with the authority, mint, max amount, and window start timestamp
     ctx.accounts.rate_limit.set_inner(RateLimit {
         authority: ctx.accounts.payer.key(),
+        mint: ctx.accounts.mint.key(),
         max_amount: RateLimit::MAX_AMOUNT,
         window_start: Clock::get()?.unix_timestamp,
         amount_transferred: 0
