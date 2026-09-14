@@ -1,1 +1,4 @@
-*target/
+target/
+node_modules/
+.anchor/
+test-ledger/
