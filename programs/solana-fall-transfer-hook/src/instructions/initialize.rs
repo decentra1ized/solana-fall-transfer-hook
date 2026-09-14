@@ -11,7 +11,7 @@ pub struct Initialize<'info> {
     #[account(
         init,
         payer = payer,
-        seeds = [b"rate_limit"],
+        seeds = [b"rate_limit", mint.key().as_ref(), payer.key().as_ref()],
         bump,
         space = ANCHOR_DISCRIMINATOR_SIZE + RateLimit::INIT_SPACE,
     )]
