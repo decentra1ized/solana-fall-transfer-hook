@@ -10,6 +10,7 @@ use {
 
 use helpers::{
     setup, setup_mint_and_extra_metas, create_ata, mint_tokens, build_transfer_with_hook_ix,
+    initialize_rate_limit,
 };
 
 #[test]
@@ -75,4 +76,40 @@ fn test_transfer_hook_rate_limit_exceeded() {
     let tx = VersionedTransaction::try_new(VersionedMessage::Legacy(msg), &[&payer]).unwrap();
     let res = svm.send_transaction(tx);
     assert!(res.is_err(), "Transfer exceeding rate limit should fail");
+}
+
+#[test]
+fn test_transfer_hook_per_owner_isolation() {
+    let (mut svm, payer, program_id) = setup();
+    let mint = Keypair::new();
+    setup_mint_and_extra_metas(&mut svm, &payer, &mint, &program_id);
+
+    // Second, independent owner with their own rate limit + tokens
+    let owner2 = Keypair::new();
+    svm.airdrop(&owner2.pubkey(), 1_000_000_000).unwrap();
+    initialize_rate_limit(&mut svm, &owner2, &mint, &program_id); // owner2's own bucket
+
+    let recipient = Keypair::new();
+    svm.airdrop(&recipient.pubkey(), 1_000_000_000).unwrap();
+
+    let source1 = create_ata(&mut svm, &payer, &payer.pubkey(), &mint.pubkey());
+    let source2 = create_ata(&mut svm, &owner2, &owner2.pubkey(), &mint.pubkey());
+    let dest = create_ata(&mut svm, &payer, &recipient.pubkey(), &mint.pubkey());
+
+    mint_tokens(&mut svm, &payer, &mint.pubkey(), &source1, 1_000_000);
+    mint_tokens(&mut svm, &payer, &mint.pubkey(), &source2, 1_000_000);
+
+    // payer maxes out their own limit
+    let ix1 = build_transfer_with_hook_ix(&source1, &dest, &mint.pubkey(), &payer.pubkey(), &program_id, 1_000_000, 9);
+    let bh = svm.latest_blockhash();
+    let msg = Message::new_with_blockhash(&[ix1], Some(&payer.pubkey()), &bh);
+    let tx = VersionedTransaction::try_new(VersionedMessage::Legacy(msg), &[&payer]).unwrap();
+    assert!(svm.send_transaction(tx).is_ok());
+
+    // owner2 should be unaffected — their bucket is a different PDA
+    let ix2 = build_transfer_with_hook_ix(&source2, &dest, &mint.pubkey(), &owner2.pubkey(), &program_id, 500_000, 9);
+    let bh = svm.latest_blockhash();
+    let msg = Message::new_with_blockhash(&[ix2], Some(&owner2.pubkey()), &bh);
+    let tx = VersionedTransaction::try_new(VersionedMessage::Legacy(msg), &[&owner2]).unwrap();
+    assert!(svm.send_transaction(tx).is_ok(), "owner2 should not be blocked by payer's limit");
 }
