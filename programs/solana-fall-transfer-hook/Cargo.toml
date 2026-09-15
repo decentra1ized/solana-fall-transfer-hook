@@ -21,7 +21,7 @@ custom-panic = []
 
 
 [dependencies]
-anchor-lang = "1.2.0"
+anchor-lang = "1.1.2"
 anchor-spl = "1.2.0"
 # TLV account resolution: `ExtraAccountMeta`, `Seed` and `ExtraAccountMetaList`.
 # `init_extra_account_meta.rs` uses these to declare and serialize the extra
@@ -46,6 +46,7 @@ solana-transaction = "4.1.6"
 solana-signer = "3.0.1"
 solana-keypair = "3.1.2"
 solana-pubkey = "4.2.1"
+token-mover = { path = "../token-mover", features = ["no-entrypoint"] }
 
 
 [lints.rust]

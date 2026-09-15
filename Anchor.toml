@@ -6,10 +6,15 @@ resolution = true
 skip-lint = false
 
 [programs.localnet]
-solana_fall_transfer_hook = "2JfEsBs1CWdqsrgrPzqZywenRgjTP1cRwuybYyRtccuM"
+solana_fall_transfer_hook = "6TfxUdqLLLUTbV5HHcQmVnziTs8oBbLzWpBCZxEXhNoD"
+token-mover = "FHN366auhNhbRAVQC3tkCghQ3bQNPunKotNHJkMMYi4e"
+
+[programs.devnet]
+solana_fall_transfer_hook = "6TfxUdqLLLUTbV5HHcQmVnziTs8oBbLzWpBCZxEXhNoD"
+token-mover = "FHN366auhNhbRAVQC3tkCghQ3bQNPunKotNHJkMMYi4e"
 
 [provider]
-cluster = "localnet"
+cluster = "devnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]

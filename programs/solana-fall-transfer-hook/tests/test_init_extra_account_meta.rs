@@ -20,7 +20,7 @@ fn test_initialize_extra_account_meta_list() {
     let mint = Keypair::new();
 
     initialize_mint(&mut svm, &payer, &mint, &program_id);
-    initialize_rate_limit(&mut svm, &payer, &mint, &program_id);
+    initialize_rate_limit(&mut svm, &payer, &mint, &payer.pubkey(), &program_id);
 
     let extra_account_meta_list = Pubkey::find_program_address(
         &[b"extra-account-metas", mint.pubkey().as_ref()],

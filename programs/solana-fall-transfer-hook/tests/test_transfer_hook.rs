@@ -17,7 +17,7 @@ fn test_transfer_hook() {
     let (mut svm, payer, program_id) = setup();
     let mint = Keypair::new();
 
-    setup_mint_and_extra_metas(&mut svm, &payer, &mint, &program_id);
+    setup_mint_and_extra_metas(&mut svm, &payer, &mint, &payer.pubkey(), &program_id);
 
     let recipient = Keypair::new();
     svm.airdrop(&recipient.pubkey(), 1_000_000_000).unwrap();
@@ -45,7 +45,7 @@ fn test_transfer_hook_rate_limit_exceeded() {
     let (mut svm, payer, program_id) = setup();
     let mint = Keypair::new();
 
-    setup_mint_and_extra_metas(&mut svm, &payer, &mint, &program_id);
+    setup_mint_and_extra_metas(&mut svm, &payer, &mint, &payer.pubkey(), &program_id);
 
     let recipient = Keypair::new();
     svm.airdrop(&recipient.pubkey(), 1_000_000_000).unwrap();
