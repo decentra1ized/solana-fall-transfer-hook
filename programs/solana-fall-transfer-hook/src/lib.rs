@@ -11,7 +11,7 @@ pub use constants::*;
 pub use instructions::*;
 pub use state::*;
 
-declare_id!("2JfEsBs1CWdqsrgrPzqZywenRgjTP1cRwuybYyRtccuM");
+declare_id!("FHJbr9AKTroZbXA6WiJkgeTxGhRYPEP99Nhzo4RYYfMx");
 
 #[program]
 pub mod solana_fall_transfer_hook {
@@ -36,5 +36,4 @@ pub mod solana_fall_transfer_hook {
     pub fn transfer_hook(ctx: Context<TransferHook>, amount: u64) -> Result<()> {
         transfer_hook::handler(ctx, amount)
     }
-
 }

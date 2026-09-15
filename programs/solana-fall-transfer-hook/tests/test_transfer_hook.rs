@@ -9,7 +9,8 @@ use {
 };
 
 use helpers::{
-    setup, setup_mint_and_extra_metas, create_ata, mint_tokens, build_transfer_with_hook_ix,
+    build_transfer_with_hook_ix, create_ata, initialize_rate_limit, mint_tokens, setup,
+    setup_mint_and_extra_metas,
 };
 
 #[test]
@@ -29,7 +30,13 @@ fn test_transfer_hook() {
     mint_tokens(&mut svm, &payer, &mint.pubkey(), &source_ata, mint_amount);
 
     let transfer_ix = build_transfer_with_hook_ix(
-        &source_ata, &dest_ata, &mint.pubkey(), &payer.pubkey(), &program_id, 100, 9,
+        &source_ata,
+        &dest_ata,
+        &mint.pubkey(),
+        &payer.pubkey(),
+        &program_id,
+        100,
+        9,
     );
 
     let blockhash = svm.latest_blockhash();
@@ -58,21 +65,70 @@ fn test_transfer_hook_rate_limit_exceeded() {
 
     // First transfer: exactly at the limit - should succeed
     let ix1 = build_transfer_with_hook_ix(
-        &source_ata, &dest_ata, &mint.pubkey(), &payer.pubkey(), &program_id, 1_000_000, 9,
+        &source_ata,
+        &dest_ata,
+        &mint.pubkey(),
+        &payer.pubkey(),
+        &program_id,
+        1_000_000,
+        9,
     );
     let blockhash = svm.latest_blockhash();
     let msg = Message::new_with_blockhash(&[ix1], Some(&payer.pubkey()), &blockhash);
     let tx = VersionedTransaction::try_new(VersionedMessage::Legacy(msg), &[&payer]).unwrap();
     let res = svm.send_transaction(tx);
-    assert!(res.is_ok(), "Transfer at limit should succeed: {:?}", res.err());
+    assert!(
+        res.is_ok(),
+        "Transfer at limit should succeed: {:?}",
+        res.err()
+    );
 
     // Second transfer: 1 token more - should fail with RateLimitExceeded
     let ix2 = build_transfer_with_hook_ix(
-        &source_ata, &dest_ata, &mint.pubkey(), &payer.pubkey(), &program_id, 1, 9,
+        &source_ata,
+        &dest_ata,
+        &mint.pubkey(),
+        &payer.pubkey(),
+        &program_id,
+        1,
+        9,
     );
     let blockhash = svm.latest_blockhash();
     let msg = Message::new_with_blockhash(&[ix2], Some(&payer.pubkey()), &blockhash);
     let tx = VersionedTransaction::try_new(VersionedMessage::Legacy(msg), &[&payer]).unwrap();
     let res = svm.send_transaction(tx);
     assert!(res.is_err(), "Transfer exceeding rate limit should fail");
+}
+
+#[test]
+fn test_rate_limit_is_per_owner() {
+    let (mut svm, payer, program_id) = setup();
+    let mint = Keypair::new();
+    setup_mint_and_extra_metas(&mut svm, &payer, &mint, &program_id);
+
+    let user = Keypair::new();
+    svm.airdrop(&user.pubkey(), 1_000_000_000).unwrap();
+    initialize_rate_limit(&mut svm, &user, &mint, &program_id);
+
+    let payer_ata = create_ata(&mut svm, &payer, &payer.pubkey(), &mint.pubkey());
+    let user_ata = create_ata(&mut svm, &payer, &user.pubkey(), &mint.pubkey());
+    let dest = create_ata(&mut svm, &payer, &Keypair::new().pubkey(), &mint.pubkey());
+    mint_tokens(&mut svm, &payer, &mint.pubkey(), &payer_ata, 1_000_000);
+    mint_tokens(&mut svm, &payer, &mint.pubkey(), &user_ata, 1_000_000);
+
+    for (ata, owner) in [(payer_ata, &payer), (user_ata, &user)] {
+        let ix = build_transfer_with_hook_ix(
+            &ata,
+            &dest,
+            &mint.pubkey(),
+            &owner.pubkey(),
+            &program_id,
+            1_000_000,
+            9,
+        );
+        let msg =
+            Message::new_with_blockhash(&[ix], Some(&owner.pubkey()), &svm.latest_blockhash());
+        let tx = VersionedTransaction::try_new(VersionedMessage::Legacy(msg), &[owner]).unwrap();
+        assert!(svm.send_transaction(tx).is_ok());
+    }
 }
