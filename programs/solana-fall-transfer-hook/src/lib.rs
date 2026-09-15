@@ -11,7 +11,7 @@ pub use constants::*;
 pub use instructions::*;
 pub use state::*;
 
-declare_id!("2JfEsBs1CWdqsrgrPzqZywenRgjTP1cRwuybYyRtccuM");
+declare_id!("FyXU51isLzKkgi6YhTRhyL6PFdd41kzTAWiv7YYMHQRJ");
 
 #[program]
 pub mod solana_fall_transfer_hook {

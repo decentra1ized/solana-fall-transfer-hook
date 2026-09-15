@@ -24,7 +24,7 @@ fn test_initialize() {
 
     // Then initialize the rate limit account
     let rate_limit = Pubkey::find_program_address(
-        &[b"rate_limit"],
+        &[b"rate_limit", mint.pubkey().as_ref(), payer.pubkey().as_ref()],
         &program_id,
     ).0;
 
@@ -33,6 +33,7 @@ fn test_initialize() {
         &solana_fall_transfer_hook::instruction::Initialize {}.data(),
         solana_fall_transfer_hook::accounts::Initialize {
             payer: payer.pubkey(),
+            mint:mint.pubkey(),             //added here
             rate_limit,
             system_program: SYSTEM_PROGRAM_ID,
         }.to_account_metas(None),
@@ -42,6 +43,46 @@ fn test_initialize() {
     let msg = solana_message::Message::new_with_blockhash(&[instruction], Some(&payer.pubkey()), &blockhash);
     let tx = solana_transaction::versioned::VersionedTransaction::try_new(
         solana_message::VersionedMessage::Legacy(msg), &[&payer],
+    ).unwrap();
+
+    let res = svm.send_transaction(tx);
+    assert!(res.is_ok(), "Initialization failed: {:?}", res.err());
+}
+
+#[test]
+fn test_initialize_per_user() {
+    let (mut svm, payer, program_id) = setup();
+    let second_wallet = Keypair::new();
+
+    //airdrop SOL
+    svm.airdrop(&second_wallet.pubkey(), 5_000_000).unwrap();
+
+    let mint = Keypair::new();
+
+    // First create the mint via the dedicated instruction
+    initialize_mint(&mut svm, &payer, &mint, &program_id);
+
+    // Then initialize the rate limit account
+    let rate_limit2 = Pubkey::find_program_address(
+        &[b"rate_limit", mint.pubkey().as_ref(), second_wallet.pubkey().as_ref()],
+        &program_id,
+    ).0;
+
+    let instruction = Instruction::new_with_bytes(
+        program_id,
+        &solana_fall_transfer_hook::instruction::Initialize {}.data(),
+        solana_fall_transfer_hook::accounts::Initialize {
+            payer: second_wallet.pubkey(),
+            mint:mint.pubkey(),             //added here
+            rate_limit :rate_limit2,
+            system_program: SYSTEM_PROGRAM_ID,
+        }.to_account_metas(None),
+    );
+
+    let blockhash = svm.latest_blockhash();
+    let msg = solana_message::Message::new_with_blockhash(&[instruction], Some(&second_wallet.pubkey()), &blockhash);
+    let tx = solana_transaction::versioned::VersionedTransaction::try_new(
+        solana_message::VersionedMessage::Legacy(msg), &[&second_wallet],
     ).unwrap();
 
     let res = svm.send_transaction(tx);

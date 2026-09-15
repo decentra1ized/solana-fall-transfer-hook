@@ -38,7 +38,9 @@ pub fn extra_account_metas() -> Result<Vec<ExtraAccountMeta>> {
         // test helpers), so all of them have to be updated together.
         ExtraAccountMeta::new_with_seeds(
             &[
-                Seed::Literal { bytes: b"rate_limit".to_vec() },
+                Seed::Literal { bytes: b"rate_limit".to_vec() },       //added
+                Seed::AccountKey {index : 1 },           //The mint
+                Seed::AccountKey {index : 3 },          //Owner
             ],
             false,                                  // is signer
             true,                                   // is writable
