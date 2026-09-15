@@ -22,8 +22,13 @@ use {
 pub fn setup() -> (LiteSVM, Keypair, Address) {
     let program_id = solana_fall_transfer_hook::id();
     let mut svm = LiteSVM::new();
+    
     let bytes = include_bytes!("../../../../target/deploy/solana_fall_transfer_hook.so");
     svm.add_program(program_id, bytes).unwrap();
+
+    // Add these two lines right here:
+    let mover_bytes = include_bytes!("../../../../target/deploy/token_mover.so");
+    svm.add_program(token_mover::id(), mover_bytes).unwrap();
 
     let payer = Keypair::new();
     svm.airdrop(&payer.pubkey(), 1_000_000_000).unwrap();
@@ -55,7 +60,7 @@ pub fn initialize_mint(svm: &mut LiteSVM, payer: &Keypair, mint: &Keypair, progr
 // For the challenge - Initialize the rate limit account and the extra account meta list for a given mint
 pub fn initialize_rate_limit(svm: &mut LiteSVM, payer: &Keypair, mint: &Keypair, program_id: &Address) {
     let rate_limit = Pubkey::find_program_address(
-        &[b"rate_limit"],
+        &[b"rate_limit", mint.pubkey().as_ref(), payer.pubkey().as_ref()],	// this is new
         program_id,
     ).0;
 
@@ -64,6 +69,7 @@ pub fn initialize_rate_limit(svm: &mut LiteSVM, payer: &Keypair, mint: &Keypair,
         &solana_fall_transfer_hook::instruction::Initialize {}.data(),
         solana_fall_transfer_hook::accounts::Initialize {
             payer: payer.pubkey(),
+	    mint: mint.pubkey(), 	// this is new
             rate_limit,
             system_program: SYSTEM_PROGRAM_ID,
         }.to_account_metas(None),
@@ -146,7 +152,7 @@ pub fn build_transfer_with_hook_ix(
     ).0;
 
     let rate_limit = Pubkey::find_program_address(
-        &[b"rate_limit"],
+        &[b"rate_limit", mint.as_ref(), owner.as_ref()],	// array updated
         program_id,
     ).0;
 
