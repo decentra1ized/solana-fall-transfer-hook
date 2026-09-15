@@ -1,9 +1,17 @@
 use std::cell::Ref;
 
 use anchor_lang::prelude::*;
-use anchor_spl::{token_2022::spl_token_2022::{extension::{BaseStateWithExtensions, PodStateWithExtensions, transfer_hook::TransferHookAccount}, pod::PodAccount}, token_interface::{Mint, TokenAccount}};
+use anchor_spl::{
+    token_2022::spl_token_2022::{
+        extension::{
+            transfer_hook::TransferHookAccount, BaseStateWithExtensions, PodStateWithExtensions,
+        },
+        pod::PodAccount,
+    },
+    token_interface::{Mint, TokenAccount},
+};
 
-use crate::{ONE_HOUR, RateLimit};
+use crate::{RateLimit, ONE_HOUR};
 
 #[derive(Accounts)]
 pub struct TransferHook<'info> {
@@ -53,7 +61,7 @@ pub fn handler(ctx: Context<TransferHook>, amount: u64) -> Result<()> {
         true => {
             msg!("Transfer amount exceeds the rate limit");
             return Err(error!(crate::error::ErrorCode::RateLimitExceeded));
-        },
+        }
         // If the limit is not exceeded, update the rate limit account with the new amount transferred and allow the transfer to proceed
         false => {
             ctx.accounts.rate_limit.update(amount);

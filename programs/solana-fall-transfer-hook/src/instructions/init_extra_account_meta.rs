@@ -1,9 +1,7 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token_interface::Mint;
 use spl_tlv_account_resolution::{
-    account::ExtraAccountMeta, 
-    seeds::Seed,
-    state::ExtraAccountMetaList
+    account::ExtraAccountMeta, seeds::Seed, state::ExtraAccountMetaList,
 };
 use spl_transfer_hook_interface::instruction::ExecuteInstruction;
 
@@ -26,9 +24,12 @@ pub struct InitializeExtraAccountMetaList<'info> {
 
 pub fn extra_account_metas() -> Result<Vec<ExtraAccountMeta>> {
     Ok(vec![
-        // A rate limit account derived from the "rate_limit" literal seed,
-        // the mint account, and the source token account owner. This makes
-        // each user's bucket independent per mint.
+        // A single, program-wide rate limit account derived only from the
+        // "rate_limit" literal seed. Every transfer of every mint by every
+        // owner resolves to this one account.
+        //
+        // CHALLENGE: make the rate limit account deterministic *per mint and
+        // per owner* by adding the mint and owner as extra seeds.
         //
         // The seeds here must match the PDA seeds used to create the account
         // in `initialize.rs` and to load it in `transfer_hook.rs` (and the
@@ -36,8 +37,8 @@ pub fn extra_account_metas() -> Result<Vec<ExtraAccountMeta>> {
         ExtraAccountMeta::new_with_seeds(
             &[
                 Seed::Literal { bytes: b"rate_limit".to_vec() },
-                Seed::AccountKey { index: 1 },
-                Seed::AccountKey { index: 3 },
+                Seed::AccountKey { index: ? },
+                Seed::AccountKey { index: ? },
             ],
             false,                                  // is signer
             true,                                   // is writable
@@ -52,8 +53,9 @@ pub fn handler(ctx: Context<InitializeExtraAccountMetaList>) -> Result<()> {
     // initialize ExtraAccountMetaList account with extra accounts
     ExtraAccountMetaList::init::<ExecuteInstruction>(
         &mut ctx.accounts.extra_account_meta_list.try_borrow_mut_data()?,
-        &extra_account_metas
-    ).unwrap();
+        &extra_account_metas,
+    )
+    .unwrap();
 
     Ok(())
 }

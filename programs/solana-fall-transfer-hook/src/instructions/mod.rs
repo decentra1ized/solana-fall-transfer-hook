@@ -1,5 +1,3 @@
-#![allow(ambiguous_glob_reexports)]
-
 pub mod init_extra_account_meta;
 pub mod initialize;
 pub mod initialize_mint;
