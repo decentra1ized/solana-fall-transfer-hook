@@ -1,0 +1,31 @@
+[package]
+name = "token-mover"
+version = "0.1.0"
+description = "Moves Token-2022 tokens by CPI, so the transfer hook still runs"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "token_mover"
+
+[features]
+default = []
+cpi = ["no-entrypoint"]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build"]
+anchor-debug = []
+custom-heap = []
+custom-panic = []
+
+[dependencies]
+anchor-lang = "1.2.0"
+anchor-spl = "1.2.0"
+# `add_extra_accounts_for_execute_cpi` resolves the hook's extra accounts and
+# appends them to our transfer_checked CPI. Without it Token-2022 would invoke
+# the hook without the accounts it declared, and the transfer would fail.
+spl-transfer-hook-interface = "2.1.0"
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(target_os, values("solana"))'] }

@@ -32,6 +32,14 @@ pub mod solana_fall_transfer_hook {
         init_extra_account_meta::handler(ctx)
     }
 
+    pub fn transfer<'info>(
+        ctx: Context<'info, Transfer<'info>>,
+        amount: u64,
+        decimals: u8,
+    ) -> Result<()> {
+        transfer::handler(ctx, amount, decimals)
+    }
+
     #[instruction(discriminator = ExecuteInstruction::SPL_DISCRIMINATOR_SLICE)]
     pub fn transfer_hook(ctx: Context<TransferHook>, amount: u64) -> Result<()> {
         transfer_hook::handler(ctx, amount)
