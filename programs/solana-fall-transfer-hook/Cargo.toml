@@ -40,6 +40,10 @@ spl-transfer-hook-interface = "2.1.0"
 
 
 [dev-dependencies]
+# The tests drive the mover program, so they need its instruction and account
+# types. `no-entrypoint` links it as a library only — without that feature both
+# programs define `entrypoint` and the test binary fails to link.
+token-mover = { path = "../token-mover", features = ["no-entrypoint"] }
 litesvm = "0.16.0"
 solana-message = "4.4.1"
 solana-transaction = "4.1.6"
