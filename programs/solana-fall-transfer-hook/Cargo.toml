@@ -24,18 +24,10 @@ custom-panic = []
 anchor-lang = "1.2.0"
 anchor-spl = "1.2.0"
 # TLV account resolution: `ExtraAccountMeta`, `Seed` and `ExtraAccountMetaList`.
-# `init_extra_account_meta.rs` uses these to declare and serialize the extra
-# accounts Token-2022 must pass to the hook (here, the rate_limit PDA) so the
-# client can resolve them automatically at transfer time.
 spl-tlv-account-resolution = "0.11.3"
-# Provides the `SplDiscriminate` trait, which yields
-# `ExecuteInstruction::SPL_DISCRIMINATOR_SLICE` — the 8-byte discriminator
-# Token-2022 uses to dispatch into our `transfer_hook` instruction (see lib.rs).
+# Provides the SPL discriminator used by the Token-2022 Execute instruction.
 spl-discriminator = "0.5.2"
-# The standard transfer-hook interface. `ExecuteInstruction` is the interface
-# type used to tag the `transfer_hook` instruction and to bind the
-# `ExtraAccountMetaList` to the Execute call (`ExtraAccountMetaList::init::
-# <ExecuteInstruction>`), keeping this program interoperable with Token-2022.
+# Standard transfer-hook interface.
 spl-transfer-hook-interface = "2.1.0"
 
 
@@ -46,6 +38,7 @@ solana-transaction = "4.1.6"
 solana-signer = "3.0.1"
 solana-keypair = "3.1.2"
 solana-pubkey = "4.2.1"
+token-mover = { path = "../token-mover", features = ["no-entrypoint"] }
 
 
 [lints.rust]
