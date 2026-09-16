@@ -29,7 +29,7 @@ pub struct TransferHook<'info> {
         mut,
         // Unique, program-wide rate limit account. See the CHALLENGE note in
         // `init_extra_account_meta.rs` for making this per-mint/per-owner.
-        seeds = [b"rate_limit"],
+        seeds = [b"rate_limit", mint.key().as_ref(), owner.key().as_ref()],
         bump,
     )]
     pub rate_limit: Account<'info, RateLimit>,
@@ -37,12 +37,8 @@ pub struct TransferHook<'info> {
 
 /// This function is called when the transfer hook is executed.
 pub fn handler(ctx: Context<TransferHook>, amount: u64) -> Result<()> {
-    // Fail this instruction if it is not called from within a transfer hook
     check_is_transferring(&ctx)?;
 
-    // If the current window has expired, open a fresh one. The window start
-    // is fixed: update() never moves it, so steady traffic cannot keep a
-    // window alive forever (see state/rate_limit.rs).
     let current_time = Clock::get()?.unix_timestamp;
     if ctx.accounts.rate_limit.is_expired(current_time, ONE_HOUR) {
         ctx.accounts.rate_limit.reset(current_time);
