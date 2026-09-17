@@ -1,7 +1,11 @@
 use std::cell::Ref;
 
 use anchor_lang::prelude::*;
-use anchor_spl::{token_2022::spl_token_2022::{extension::{BaseStateWithExtensions, PodStateWithExtensions, transfer_hook::TransferHookAccount}, pod::PodAccount}, token_interface::{Mint, TokenAccount}};
+use anchor_spl::{token_2022::spl_token_2022::{extension::{BaseStateWithExtensions, PodStateWithExtensions, transfer_hook::TransferHookAccount}, pod::PodAccount},};
+use anchor_spl::{
+    token_2022::Token2022,
+    token_interface::{Mint, TokenAccount},
+};
 
 use crate::{ONE_HOUR, RateLimit};
 
@@ -10,18 +14,20 @@ pub struct TransferHook<'info> {
     #[account(
         token::mint = mint, 
         token::authority = owner,
+        token::token_program = token_program,
     )]
     pub source_token: InterfaceAccount<'info, TokenAccount>,
     pub mint: InterfaceAccount<'info, Mint>,
     #[account(
         token::mint = mint,
+        token::token_program = token_program,
     )]
     pub destination_token: InterfaceAccount<'info, TokenAccount>,
     /// CHECK: source token account owner, can be SystemAccount or PDA owned by another program
     pub owner: UncheckedAccount<'info>,
     /// CHECK: ExtraAccountMetaList Account
     #[account(
-        seeds = [b"extra-account-metas", mint.key().as_ref()], 
+        seeds = [b"extra-account-metas", mint.key().as_ref(), owner.key().as_ref()], 
         bump
     )]
     pub extra_account_meta_list: UncheckedAccount<'info>,
@@ -31,8 +37,11 @@ pub struct TransferHook<'info> {
         // `init_extra_account_meta.rs` for making this per-mint/per-owner.
         seeds = [b"rate_limit"],
         bump,
+        constraint = rate_limit.mint == mint.key() @ crate::error::ErrorCode::InvalidMintForRateLimit,
     )]
     pub rate_limit: Account<'info, RateLimit>,
+    ///Token-2022 program
+    pub token_program: Program<'info, Token2022>,
 }
 
 /// This function is called when the transfer hook is executed.

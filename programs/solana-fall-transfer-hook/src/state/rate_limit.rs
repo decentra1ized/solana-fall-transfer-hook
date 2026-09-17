@@ -4,6 +4,7 @@ use anchor_lang::prelude::*;
 #[derive(InitSpace)]
 pub struct RateLimit {
     pub authority: Pubkey,          // The account that can update the rate limit
+    pub mint: Pubkey,               // The mint for which this rate limit applies
     pub max_amount: u64,            // The maximum amount that can be transferred within one window
     pub window_start: i64,          // The timestamp at which the current window opened
     pub amount_transferred: u64,    // The total amount transferred within the current window
@@ -39,4 +40,5 @@ impl RateLimit {
     }
 
     pub const MAX_AMOUNT: u64 = 1_000_000; // Example max amount
+    pub const WINDOW_DURATION: i64 = 86_400; // Example window duration in seconds (1 hour)
 }
