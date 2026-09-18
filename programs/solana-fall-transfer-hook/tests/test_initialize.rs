@@ -24,7 +24,7 @@ fn test_initialize() {
 
     // Then initialize the rate limit account
     let rate_limit = Pubkey::find_program_address(
-        &[b"rate_limit"],
+        &[b"rate_limit", mint.pubkey().as_ref(), payer.pubkey().as_ref()],
         &program_id,
     ).0;
 
@@ -34,6 +34,7 @@ fn test_initialize() {
         solana_fall_transfer_hook::accounts::Initialize {
             payer: payer.pubkey(),
             mint: mint.pubkey(),
+            owner: payer.pubkey(),
             rate_limit,
             system_program: SYSTEM_PROGRAM_ID,
         }.to_account_metas(None),
@@ -55,7 +56,7 @@ fn test_initialize_invalid_mint() {
     let invalid_mint = Keypair::new();
 
     let rate_limit = Pubkey::find_program_address(
-        &[b"rate_limit"],
+        &[b"rate_limit", invalid_mint.pubkey().as_ref(), payer.pubkey().as_ref()],
         &program_id,
     ).0;
 
@@ -65,6 +66,7 @@ fn test_initialize_invalid_mint() {
         solana_fall_transfer_hook::accounts::Initialize {
             payer: payer.pubkey(),
             mint: invalid_mint.pubkey(),
+            owner: payer.pubkey(),
             rate_limit,
             system_program: SYSTEM_PROGRAM_ID,
         }.to_account_metas(None),

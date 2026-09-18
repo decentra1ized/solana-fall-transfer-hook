@@ -8,12 +8,12 @@ pub struct Initialize<'info> {
     #[account(mut)]
     pub payer: Signer<'info>,
     pub mint: InterfaceAccount<'info, Mint>,
+    /// CHECK: The owner of the rate limit bucket
+    pub owner: UncheckedAccount<'info>,
     #[account(
         init,
         payer = payer,
-        // Unique, program-wide rate limit account. See the CHALLENGE note in
-        // `init_extra_account_meta.rs` for making this per-mint/per-owner.
-        seeds = [b"rate_limit"],
+        seeds = [b"rate_limit", mint.key().as_ref(), owner.key().as_ref()],
         bump,
         space = ANCHOR_DISCRIMINATOR_SIZE + RateLimit::INIT_SPACE,
     )]
@@ -30,6 +30,7 @@ pub fn handler(ctx: Context<Initialize>) -> Result<()> {
 
     ctx.accounts.rate_limit.set_inner(RateLimit {
         authority: ctx.accounts.payer.key(),
+        mint: ctx.accounts.mint.key(),
         max_amount: RateLimit::MAX_AMOUNT,
         window_start: Clock::get()?.unix_timestamp,
         amount_transferred: 0,
