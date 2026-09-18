@@ -29,7 +29,7 @@ pub struct TransferHook<'info> {
         mut,
         // Unique, program-wide rate limit account. See the CHALLENGE note in
         // `init_extra_account_meta.rs` for making this per-mint/per-owner.
-        seeds = [b"rate_limit"],
+        seeds = [b"rate_limit", mint.key().as_ref(), owner.key().as_ref()],
         bump,
     )]
     pub rate_limit: Account<'info, RateLimit>,
