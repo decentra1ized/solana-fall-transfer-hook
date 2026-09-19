@@ -30,7 +30,7 @@ fn test_initialize() {
 
     // Then initialize the rate limit account
     let rate_limit = Pubkey::find_program_address(
-        &[b"rate_limit"],
+        &[b"rate_limit", mint.pubkey().as_ref(), payer.pubkey().as_ref()],
         &program_id,
     ).0;
 
@@ -88,7 +88,11 @@ fn test_initialize_rejects_legacy_token_mint() {
     )
     .unwrap();
 
-    let rate_limit = Pubkey::find_program_address(&[b"rate_limit"], &program_id).0;
+    let rate_limit = Pubkey::find_program_address(
+        &[b"rate_limit", mint.pubkey().as_ref(), payer.pubkey().as_ref()],
+        &program_id,
+    )
+    .0;
     let instruction = Instruction::new_with_bytes(
         program_id,
         &solana_fall_transfer_hook::instruction::Initialize {}.data(),
