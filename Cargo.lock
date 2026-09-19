@@ -2748,6 +2748,7 @@ dependencies = [
  "anchor-lang",
  "anchor-spl",
  "litesvm",
+ "solana-account",
  "solana-keypair",
  "solana-message",
  "solana-pubkey 4.2.1",
