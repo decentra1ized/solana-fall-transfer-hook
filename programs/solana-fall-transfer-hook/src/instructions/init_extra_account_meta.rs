@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token_interface::Mint;
 use spl_tlv_account_resolution::{
-    account::ExtraAccountMeta, 
+    account::ExtraAccountMeta,
     seeds::Seed,
     state::ExtraAccountMetaList
 };
@@ -40,7 +40,9 @@ pub fn extra_account_metas() -> Result<Vec<ExtraAccountMeta>> {
     ])
 }
 
-pub fn handler(ctx: Context<InitializeExtraAccountMetaList>) -> Result<()> {
+pub fn initialize_extra_account_meta_list_handler(
+    ctx: Context<InitializeExtraAccountMetaList>,
+) -> Result<()> {
     // Get the extra account metas for the transfer hook
     let extra_account_metas = extra_account_metas()?;
 

@@ -20,7 +20,7 @@ pub struct Initialize<'info> {
     pub system_program: Program<'info, System>,
 }
 
-pub fn handler(ctx: Context<Initialize>) -> Result<()> {
+pub fn initialize_handler(ctx: Context<Initialize>) -> Result<()> {
     // A token interface account can belong to either token program, so require
     // this mint to be owned specifically by Token-2022.
     require_keys_eq!(

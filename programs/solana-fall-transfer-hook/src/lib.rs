@@ -19,22 +19,22 @@ pub mod solana_fall_transfer_hook {
     use super::*;
 
     pub fn initialize_mint(ctx: Context<InitializeMint>) -> Result<()> {
-        initialize_mint::handler(ctx)
+        initialize_mint::initialize_mint_handler(ctx)
     }
 
     pub fn initialize(ctx: Context<Initialize>) -> Result<()> {
-        initialize::handler(ctx)
+        initialize::initialize_handler(ctx)
     }
 
     pub fn initialize_extra_account_meta_list(
         ctx: Context<InitializeExtraAccountMetaList>,
     ) -> Result<()> {
-        init_extra_account_meta::handler(ctx)
+        init_extra_account_meta::initialize_extra_account_meta_list_handler(ctx)
     }
 
     #[instruction(discriminator = ExecuteInstruction::SPL_DISCRIMINATOR_SLICE)]
     pub fn transfer_hook(ctx: Context<TransferHook>, amount: u64) -> Result<()> {
-        transfer_hook::handler(ctx, amount)
+        transfer_hook::transfer_hook_handler(ctx, amount)
     }
 
 }
