@@ -1,0 +1,29 @@
+[package]
+name = "transfer-helper"
+version = "0.1.0"
+description = "Token-2022 transfer helper for the transfer hook example"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "transfer_helper"
+
+[features]
+default = []
+cpi = ["no-entrypoint"]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build"]
+anchor-debug = []
+custom-heap = []
+custom-panic = []
+
+[dependencies]
+anchor-lang = "1.2.0"
+anchor-spl = "1.2.0"
+solana-fall-transfer-hook = { path = "../solana-fall-transfer-hook", features = ["cpi"] }
+spl-transfer-hook-interface = "2.1.0"
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(target_os, values("solana"))'] }

@@ -8,7 +8,7 @@ use crate::{ONE_HOUR, RateLimit};
 #[derive(Accounts)]
 pub struct TransferHook<'info> {
     #[account(
-        token::mint = mint, 
+        token::mint = mint,
         token::authority = owner,
     )]
     pub source_token: InterfaceAccount<'info, TokenAccount>,
@@ -21,22 +21,21 @@ pub struct TransferHook<'info> {
     pub owner: UncheckedAccount<'info>,
     /// CHECK: ExtraAccountMetaList Account
     #[account(
-        seeds = [b"extra-account-metas", mint.key().as_ref()], 
+        seeds = [b"extra-account-metas", mint.key().as_ref()],
         bump
     )]
     pub extra_account_meta_list: UncheckedAccount<'info>,
     #[account(
         mut,
-        // Unique, program-wide rate limit account. See the CHALLENGE note in
-        // `init_extra_account_meta.rs` for making this per-mint/per-owner.
-        seeds = [b"rate_limit"],
+        // Each mint and owner pair gets its own rate-limit account.
+        seeds = [b"rate_limit", mint.key().as_ref(), owner.key().as_ref()],
         bump,
     )]
     pub rate_limit: Account<'info, RateLimit>,
 }
 
 /// This function is called when the transfer hook is executed.
-pub fn handler(ctx: Context<TransferHook>, amount: u64) -> Result<()> {
+pub fn transfer_hook_handler(ctx: Context<TransferHook>, amount: u64) -> Result<()> {
     // Fail this instruction if it is not called from within a transfer hook
     check_is_transferring(&ctx)?;
 
