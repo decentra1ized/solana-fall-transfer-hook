@@ -52,10 +52,16 @@ pub fn initialize_mint(svm: &mut LiteSVM, payer: &Keypair, mint: &Keypair, progr
     send_ix(svm, ix, payer, &[payer, mint]);
 }
 
-// For the challenge - Initialize the rate limit account and the extra account meta list for a given mint
-pub fn initialize_rate_limit(svm: &mut LiteSVM, payer: &Keypair, mint: &Keypair, program_id: &Address) {
+/// Initializes a rate limit for `owner` on `mint`. Every distinct
+/// (mint, owner) pair needs its own call before that owner can transfer.
+pub fn initialize_rate_limit_for(
+    svm: &mut LiteSVM,
+    owner: &Keypair,
+    mint: &Keypair,
+    program_id: &Address,
+) {
     let rate_limit = Pubkey::find_program_address(
-        &[b"rate_limit"],
+        &[b"rate_limit", mint.pubkey().as_ref(), owner.pubkey().as_ref()],
         program_id,
     ).0;
 
@@ -63,12 +69,19 @@ pub fn initialize_rate_limit(svm: &mut LiteSVM, payer: &Keypair, mint: &Keypair,
         *program_id,
         &solana_fall_transfer_hook::instruction::Initialize {}.data(),
         solana_fall_transfer_hook::accounts::Initialize {
-            payer: payer.pubkey(),
+            payer: owner.pubkey(),
+            mint: mint.pubkey(),
             rate_limit,
             system_program: SYSTEM_PROGRAM_ID,
         }.to_account_metas(None),
     );
-    send_ix(svm, ix, payer, &[payer]);
+    send_ix(svm, ix, owner, &[owner]);
+}
+
+/// Back-compat wrapper for call sites that initialize the rate limit for
+/// the main payer itself.
+pub fn initialize_rate_limit(svm: &mut LiteSVM, payer: &Keypair, mint: &Keypair, program_id: &Address) {
+    initialize_rate_limit_for(svm, payer, mint, program_id);
 }
 
 pub fn initialize_extra_account_metas(svm: &mut LiteSVM, payer: &Keypair, mint: &Keypair, program_id: &Address) {
@@ -92,7 +105,7 @@ pub fn initialize_extra_account_metas(svm: &mut LiteSVM, payer: &Keypair, mint: 
 
 pub fn setup_mint_and_extra_metas(svm: &mut LiteSVM, payer: &Keypair, mint: &Keypair, program_id: &Address) {
     initialize_mint(svm, payer, mint, program_id);
-    initialize_rate_limit(svm, payer, mint, program_id);
+    initialize_rate_limit_for(svm, payer, mint, program_id);
     initialize_extra_account_metas(svm, payer, mint, program_id);
 }
 
@@ -146,7 +159,7 @@ pub fn build_transfer_with_hook_ix(
     ).0;
 
     let rate_limit = Pubkey::find_program_address(
-        &[b"rate_limit"],
+        &[b"rate_limit", mint.as_ref(), owner.as_ref()],
         program_id,
     ).0;
 
