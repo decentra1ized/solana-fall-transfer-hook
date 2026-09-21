@@ -291,3 +291,97 @@ The program above works, but it takes a deliberate shortcut: there is a single, 
    In `extra_account_metas()` the extra seeds don't reference the mint and owner by name - they reference accounts by their **index** in the transfer hook's execute instruction. Work out which index is the mint and which is the owner.
 
 4. **make the transfer inside your program.** Implement a transfer_checked inside your program to invoke the transfer hook. Deal with re-entrancy.
+
+---
+
+## Solutions
+
+All four challenges are implemented. The tutorial text above describes the
+starting point; this section records what changed.
+
+### 1. Validate the mint
+
+`Initialize` now takes a `mint: InterfaceAccount<'info, Mint>`, declared before
+`rate_limit` because the PDA seeds read it. `InterfaceAccount<Mint>` accepts
+both SPL Token and Token-2022 mints, so the handler narrows it:
+
+```rust
+let mint_info = ctx.accounts.mint.to_account_info();
+require_keys_eq!(*mint_info.owner, token_2022::ID, ErrorCode::InvalidMint);
+```
+
+A legacy SPL Token mint now fails with `InvalidMint` (`0x1772`). See
+`test_initialize_rejects_non_token_2022_mint`.
+
+### 2. Remember the mint on the account
+
+`RateLimit` gained a `mint: Pubkey` field, set from `ctx.accounts.mint.key()`.
+The `InitSpace` derive adjusts the account size. `test_initialize` reads the
+account back and asserts the field.
+
+### 3. One rate limit per mint and per owner
+
+The PDA seeds changed from `[b"rate_limit"]` to
+`[b"rate_limit", mint, owner]`. The seeds live in four places, which must all
+agree:
+
+| File | Role |
+|------|------|
+| `instructions/init_extra_account_meta.rs` | what the runtime resolves at transfer time |
+| `instructions/initialize.rs` | where the account is created (`payer` is the owner) |
+| `instructions/transfer_hook.rs` | where the account is loaded |
+| `tests/helpers/mod.rs` | `rate_limit_pda()`, used by every test |
+
+`extra_account_metas()` cannot name accounts, only index them in the
+`ExecuteInstruction` account list:
+
+```
+0 = source_token   1 = mint   2 = destination_token   3 = owner   4 = extra_account_meta_list
+```
+
+So the seeds are `Seed::Literal("rate_limit")`, `Seed::AccountKey { index: 1 }`
+and `Seed::AccountKey { index: 3 }`.
+
+Each owner must call `initialize` once per mint before their first transfer.
+`test_rate_limit_is_per_owner` sends 1,000,000 from two wallets in the same
+hour; both succeed, and each wallet is still capped on its own.
+
+### 4. Transfer from a program
+
+The transfer instruction cannot live in the hook program. Token-2022 would call
+the hook back while that program is still on the call stack, and the runtime
+rejects re-entrancy. The instruction therefore lives in a second program,
+`programs/token-mover`, which makes the call chain linear:
+
+```
+token-mover -> Token-2022 -> solana-fall-transfer-hook
+```
+
+`transfer_with_hook` reads the hook program id from the mint's `TransferHook`
+extension, builds `transfer_checked`, appends the hook's accounts with
+`add_extra_accounts_for_execute_cpi`, and invokes Token-2022. The hook program,
+its `ExtraAccountMetaList` and the `rate_limit` PDA arrive as
+`remaining_accounts`.
+
+`test_token_mover.rs` sends 100 through the mover, then 1,000,000 followed by
+one more base unit, which fails with `RateLimitExceeded` (`0x1771`).
+
+## Error codes
+
+| Hex | Error |
+|-----|-------|
+| `0x1770` | `CustomError` |
+| `0x1771` | `RateLimitExceeded` |
+| `0x1772` | `InvalidMint` |
+| `0x1773` | `NotTransferring` |
+
+## Build and test
+
+```bash
+cargo build-sbf   # writes target/deploy/*.so, which the tests include_bytes!
+cargo test
+```
+
+`anchor build` works the same way where the Anchor SBF toolchain is installed.
+Always build before `cargo test`: the LiteSVM tests load the compiled `.so`
+files from `target/deploy/`.
