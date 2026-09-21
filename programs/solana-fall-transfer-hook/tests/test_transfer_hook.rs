@@ -9,7 +9,7 @@ use {
 };
 
 use helpers::{
-    setup, setup_mint_and_extra_metas, create_ata, mint_tokens, build_transfer_with_hook_ix,
+    setup, setup_mint_and_extra_metas, create_ata, mint_tokens, build_transfer_with_hook_ix, initialize_rate_limit,
 };
 
 #[test]
@@ -75,4 +75,51 @@ fn test_transfer_hook_rate_limit_exceeded() {
     let tx = VersionedTransaction::try_new(VersionedMessage::Legacy(msg), &[&payer]).unwrap();
     let res = svm.send_transaction(tx);
     assert!(res.is_err(), "Transfer exceeding rate limit should fail");
+}
+
+#[test]
+fn test_per_user_rate_limits() {
+    let (mut svm, payer, program_id) = setup();
+    let mint = Keypair::new();
+
+    // Initialize mint, payer rate limit, and extra metas
+    setup_mint_and_extra_metas(&mut svm, &payer, &mint, &program_id);
+
+    // Setup second wallet
+    let wallet2 = Keypair::new();
+    svm.airdrop(&wallet2.pubkey(), 1_000_000_000).unwrap();
+    // Initialize rate limit for wallet2
+    initialize_rate_limit(&mut svm, &wallet2, &mint, &program_id);
+
+    // Setup recipient
+    let recipient = Keypair::new();
+    svm.airdrop(&recipient.pubkey(), 1_000_000_000).unwrap();
+
+    let payer_ata = create_ata(&mut svm, &payer, &payer.pubkey(), &mint.pubkey());
+    let wallet2_ata = create_ata(&mut svm, &payer, &wallet2.pubkey(), &mint.pubkey());
+    let dest_ata = create_ata(&mut svm, &payer, &recipient.pubkey(), &mint.pubkey());
+
+    // Mint 1,000,000 to payer and 1,000,000 to wallet2
+    mint_tokens(&mut svm, &payer, &mint.pubkey(), &payer_ata, 1_000_000);
+    mint_tokens(&mut svm, &payer, &mint.pubkey(), &wallet2_ata, 1_000_000);
+
+    // Payer transfers 1,000,000 (their entire limit)
+    let ix1 = build_transfer_with_hook_ix(
+        &payer_ata, &dest_ata, &mint.pubkey(), &payer.pubkey(), &program_id, 1_000_000, 9,
+    );
+    let blockhash = svm.latest_blockhash();
+    let msg1 = Message::new_with_blockhash(&[ix1], Some(&payer.pubkey()), &blockhash);
+    let tx1 = VersionedTransaction::try_new(VersionedMessage::Legacy(msg1), &[&payer]).unwrap();
+    let res1 = svm.send_transaction(tx1);
+    assert!(res1.is_ok(), "Payer transfer should succeed: {:?}", res1.err());
+
+    // Wallet 2 also transfers 1,000,000 within the same window (should succeed because rate limits are per-user)
+    let ix2 = build_transfer_with_hook_ix(
+        &wallet2_ata, &dest_ata, &mint.pubkey(), &wallet2.pubkey(), &program_id, 1_000_000, 9,
+    );
+    let blockhash = svm.latest_blockhash();
+    let msg2 = Message::new_with_blockhash(&[ix2], Some(&wallet2.pubkey()), &blockhash);
+    let tx2 = VersionedTransaction::try_new(VersionedMessage::Legacy(msg2), &[&wallet2]).unwrap();
+    let res2 = svm.send_transaction(tx2);
+    assert!(res2.is_ok(), "Wallet 2 transfer should succeed independently: {:?}", res2.err());
 }
