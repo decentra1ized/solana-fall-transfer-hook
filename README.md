@@ -291,3 +291,21 @@ The program above works, but it takes a deliberate shortcut: there is a single, 
    In `extra_account_metas()` the extra seeds don't reference the mint and owner by name - they reference accounts by their **index** in the transfer hook's execute instruction. Work out which index is the mint and which is the owner.
 
 4. **make the transfer inside your program.** Implement a transfer_checked inside your program to invoke the transfer hook. Deal with re-entrancy.
+
+---
+
+## Solution notes
+
+- The rate limit PDA is now derived from `["rate_limit", mint, owner]`, so every holder gets
+  their own bucket per mint. The seeds are declared in four places
+  (`extra_account_metas()`, `Initialize`, `TransferHook`, and the test helpers) and all four
+  have to agree. In `extra_account_metas()` the mint and owner are referenced by their index
+  in the Execute instruction: `1` and `3`.
+- `initialize` takes the mint and checks its owner is the Token-2022 program before creating
+  the account, and stores the mint on `RateLimit`.
+- `programs/token-mover` does the `transfer_checked` CPI. It has to be a separate program:
+  if the hook program itself started the transfer, the CPI chain would be
+  hook -> Token-2022 -> hook, and the runtime rejects that with `ReentrancyNotAllowed`
+  (only direct self-recursion is allowed). It uses
+  `add_extra_accounts_for_execute_cpi` to resolve the hook's extra accounts, so callers only
+  pass the hook program plus its extras as remaining accounts.
