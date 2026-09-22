@@ -10,6 +10,7 @@ use {
 
 use helpers::{
     setup, setup_mint_and_extra_metas, create_ata, mint_tokens, build_transfer_with_hook_ix,
+    build_mover_transfer_ix, initialize_rate_limit, send_ix,
 };
 
 #[test]
@@ -75,4 +76,71 @@ fn test_transfer_hook_rate_limit_exceeded() {
     let tx = VersionedTransaction::try_new(VersionedMessage::Legacy(msg), &[&payer]).unwrap();
     let res = svm.send_transaction(tx);
     assert!(res.is_err(), "Transfer exceeding rate limit should fail");
+}
+
+#[test]
+fn test_rate_limit_is_per_owner() {
+    let (mut svm, payer, program_id) = setup();
+    let mint = Keypair::new();
+
+    setup_mint_and_extra_metas(&mut svm, &payer, &mint, &program_id);
+
+    let other = Keypair::new();
+    svm.airdrop(&other.pubkey(), 1_000_000_000).unwrap();
+    initialize_rate_limit(&mut svm, &other, &mint, &program_id);
+
+    let recipient = Keypair::new();
+    let payer_ata = create_ata(&mut svm, &payer, &payer.pubkey(), &mint.pubkey());
+    let other_ata = create_ata(&mut svm, &payer, &other.pubkey(), &mint.pubkey());
+    let dest_ata = create_ata(&mut svm, &payer, &recipient.pubkey(), &mint.pubkey());
+
+    mint_tokens(&mut svm, &payer, &mint.pubkey(), &payer_ata, 1_000_000);
+    mint_tokens(&mut svm, &payer, &mint.pubkey(), &other_ata, 1_000_000);
+
+    // payer burns through their whole window
+    let ix = build_transfer_with_hook_ix(
+        &payer_ata, &dest_ata, &mint.pubkey(), &payer.pubkey(), &program_id, 1_000_000, 9,
+    );
+    send_ix(&mut svm, ix, &payer, &[&payer]);
+
+    // which must not affect anyone else's bucket
+    let ix = build_transfer_with_hook_ix(
+        &other_ata, &dest_ata, &mint.pubkey(), &other.pubkey(), &program_id, 1_000_000, 9,
+    );
+    let blockhash = svm.latest_blockhash();
+    let msg = Message::new_with_blockhash(&[ix], Some(&other.pubkey()), &blockhash);
+    let tx = VersionedTransaction::try_new(VersionedMessage::Legacy(msg), &[&other]).unwrap();
+
+    let res = svm.send_transaction(tx);
+    assert!(res.is_ok(), "Second owner should have their own limit: {:?}", res.err());
+}
+
+#[test]
+fn test_transfer_through_token_mover() {
+    let (mut svm, payer, program_id) = setup();
+    let mint = Keypair::new();
+
+    setup_mint_and_extra_metas(&mut svm, &payer, &mint, &program_id);
+
+    let recipient = Keypair::new();
+    let source_ata = create_ata(&mut svm, &payer, &payer.pubkey(), &mint.pubkey());
+    let dest_ata = create_ata(&mut svm, &payer, &recipient.pubkey(), &mint.pubkey());
+
+    mint_tokens(&mut svm, &payer, &mint.pubkey(), &source_ata, 2_000_000);
+
+    // Same rate limit applies when the transfer comes from another program
+    let ix = build_mover_transfer_ix(
+        &source_ata, &dest_ata, &mint.pubkey(), &payer.pubkey(), &program_id, 1_000_000,
+    );
+    send_ix(&mut svm, ix, &payer, &[&payer]);
+
+    let ix = build_mover_transfer_ix(
+        &source_ata, &dest_ata, &mint.pubkey(), &payer.pubkey(), &program_id, 1,
+    );
+    let blockhash = svm.latest_blockhash();
+    let msg = Message::new_with_blockhash(&[ix], Some(&payer.pubkey()), &blockhash);
+    let tx = VersionedTransaction::try_new(VersionedMessage::Legacy(msg), &[&payer]).unwrap();
+
+    let res = svm.send_transaction(tx);
+    assert!(res.is_err(), "CPI transfer over the limit should fail");
 }
