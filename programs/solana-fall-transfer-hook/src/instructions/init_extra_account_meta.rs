@@ -23,7 +23,7 @@ pub struct InitializeExtraAccountMetaList<'info> {
     pub extra_account_meta_list: UncheckedAccount<'info>,
     pub system_program: Program<'info, System>,
 }
-
+ 
 pub fn extra_account_metas() -> Result<Vec<ExtraAccountMeta>> {
     Ok(vec![
         // A single, program-wide rate limit account derived only from the
@@ -39,6 +39,8 @@ pub fn extra_account_metas() -> Result<Vec<ExtraAccountMeta>> {
         ExtraAccountMeta::new_with_seeds(
             &[
                 Seed::Literal { bytes: b"rate_limit".to_vec() },
+                Seed::AccountKey { index: 1 },
+                Seed::AccountKey { index: 3 },
             ],
             false,                                  // is signer
             true,                                   // is writable
